@@ -1,0 +1,1 @@
+{"rustc":9962589839773983263,"features":"[]","target":18334772776678479498,"profile":4339006351771724982,"path":11345662775667635372,"deps":[],"local":[{"CheckDepInfo":{"dep_info":"bpfel-unknown-unknown/release/.fingerprint/block-padding-3fec5d4721c19b54/dep-lib-block-padding"}}],"rustflags":["-C","lto=no","-C","opt-level=2"],"metadata":6907946369758872284,"config":0}

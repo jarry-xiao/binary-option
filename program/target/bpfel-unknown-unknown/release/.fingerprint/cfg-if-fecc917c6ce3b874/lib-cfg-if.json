@@ -1,0 +1,1 @@
+{"rustc":9962589839773983263,"features":"[]","target":834697563557903354,"profile":4339006351771724982,"path":11324343817029957361,"deps":[],"local":[{"CheckDepInfo":{"dep_info":"bpfel-unknown-unknown/release/.fingerprint/cfg-if-fecc917c6ce3b874/dep-lib-cfg-if"}}],"rustflags":["-C","lto=no","-C","opt-level=2"],"metadata":8462187951337715540,"config":0}

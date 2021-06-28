@@ -1,1 +1,0 @@
-{"rustc":9962589839773983263,"features":"[]","target":8524337025134985022,"profile":4339006351771724982,"path":1952906199393482163,"deps":[],"local":[{"CheckDepInfo":{"dep_info":"bpfel-unknown-unknown/release/.fingerprint/spin-1e2785e23f690260/dep-lib-spin"}}],"rustflags":["-C","lto=no","-C","opt-level=2"],"metadata":6620005600999123125,"config":0}

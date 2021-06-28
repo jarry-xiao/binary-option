@@ -1,1 +1,0 @@
-{"rustc":9962589839773983263,"features":"[\"std\"]","target":9689889278138599413,"profile":4339006351771724982,"path":6153963845267505595,"deps":[],"local":[{"CheckDepInfo":{"dep_info":"bpfel-unknown-unknown/release/.fingerprint/rustc-hex-13adb3c0085276d8/dep-lib-rustc-hex"}}],"rustflags":["-C","lto=no","-C","opt-level=2"],"metadata":11278451656052502128,"config":0}

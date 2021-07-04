@@ -8,7 +8,6 @@ use {
         // borsh::try_from_slice_unchecked,
         entrypoint::ProgramResult,
         // msg,
-        // program::{invoke, invoke_signed},
         program_error::ProgramError,
         program_pack::{IsInitialized, Pack},
         pubkey::Pubkey,
@@ -16,7 +15,6 @@ use {
         // sysvar::{rent::Rent, Sysvar},
     },
     spl_token::{
-        // instruction::{set_authority, AuthorityType},
         state::Mint,
     },
     // std::convert::TryInto,
@@ -44,6 +42,14 @@ pub fn assert_mint_authority_matches_mint(
     Ok(())
 }
 
+pub fn assert_keys_equal(key1: Pubkey, key2: Pubkey) -> ProgramResult {
+    if key1 != key2 {
+        Err(BettingPoolError::MismatchedPublicKeys.into())
+    } else {
+        Ok(())
+    }
+}
+
 /// assert initialized account
 pub fn assert_initialized<T: Pack + IsInitialized>(
     account_info: &AccountInfo,
@@ -59,6 +65,14 @@ pub fn assert_initialized<T: Pack + IsInitialized>(
 /// assert owned by
 pub fn assert_owned_by(account: &AccountInfo, owner: &Pubkey) -> ProgramResult {
     if account.owner != owner {
+        Err(BettingPoolError::IncorrectOwner.into())
+    } else {
+        Ok(())
+    }
+}
+
+pub fn assert_is_token_program(token_program_info: &AccountInfo)-> ProgramResult {
+    if *token_program_info.key != spl_token::id() {
         Err(BettingPoolError::IncorrectOwner.into())
     } else {
         Ok(())

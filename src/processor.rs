@@ -2,11 +2,16 @@ use crate::{
     error::BettingPoolError,
     instruction::BettingPoolInstruction,
     spl_utils::{
-        spl_burn, spl_initialize, spl_mint_to, spl_set_authority, spl_token_transfer,
+        spl_burn,
+        spl_initialize,
+        spl_mint_initialize,
+        spl_mint_to,
+        spl_set_authority,
+        spl_token_transfer,
         spl_token_transfer_signed,
     },
     state::BettingPool,
-    system_utils::create_or_allocate_account_raw,
+    system_utils::{create_new_account, create_or_allocate_account_raw},
     validation_utils::{
         assert_initialized, assert_keys_equal, assert_mint_authority_matches_mint, assert_owned_by,
     },
@@ -77,61 +82,52 @@ pub fn process_initialize_betting_pool(
     let system_account_info = next_account_info(account_info_iter)?;
     let rent_info = next_account_info(account_info_iter)?;
 
-    let long_token_mint: Mint = assert_initialized(long_token_mint_info)?;
-    let short_token_mint: Mint = assert_initialized(short_token_mint_info)?;
-    let long_escrow_account: Account = assert_initialized(long_escrow_account_info)?;
-    let short_escrow_account: Account = assert_initialized(short_escrow_account_info)?;
+    msg!("Loaded accounts for InitializeBettingPool");
 
-    let (long_escrow_key, long_escrow_seed) = Pubkey::find_program_address(
-        &[
-            long_token_mint_info.key.as_ref(),
-            token_program_info.key.as_ref(),
-            program_id.as_ref(),
-        ],
-        program_id,
-    );
-    let long_escrow_seeds = &[
-        long_token_mint_info.key.as_ref(),
-        token_program_info.key.as_ref(),
-        program_id.as_ref(),
-        &[long_escrow_seed],
-    ];
-
-    let (short_escrow_key, short_escrow_seed) = Pubkey::find_program_address(
-        &[
-            short_token_mint_info.key.as_ref(),
-            token_program_info.key.as_ref(),
-            program_id.as_ref(),
-        ],
-        program_id,
-    );
-    let short_escrow_seeds = &[
-        short_token_mint_info.key.as_ref(),
-        token_program_info.key.as_ref(),
-        program_id.as_ref(),
-        &[short_escrow_seed],
-    ];
-
-    assert_mint_authority_matches_mint(&long_token_mint, mint_authority_info)?;
-    assert_mint_authority_matches_mint(&short_token_mint, mint_authority_info)?;
-    assert_owned_by(long_token_mint_info, &spl_token::id())?;
-    assert_owned_by(short_token_mint_info, &spl_token::id())?;
-    assert_owned_by(long_escrow_account_info, update_authority_info.key)?;
-    assert_owned_by(short_escrow_account_info, update_authority_info.key)?;
-    assert_keys_equal(*token_program_info.key, spl_token::id())?;
-    assert_keys_equal(long_escrow_account.mint, *long_token_mint_info.key)?;
-    assert_keys_equal(short_escrow_account.mint, *short_token_mint_info.key)?;
-    assert_keys_equal(*long_escrow_account_info.key, long_escrow_key)?;
-    assert_keys_equal(*short_escrow_account_info.key, short_escrow_key)?;
-
-    create_or_allocate_account_raw(
-        *program_id,
-        long_escrow_account_info,
-        rent_info,
-        system_account_info,
-        update_authority_info,
+    create_new_account(
+        &mint_authority_info,
+        &long_token_mint_info,
+        Mint::LEN,
+        &token_program_info,
+        &rent_info,
+    )?;
+    create_new_account(
+        &mint_authority_info,
+        &short_token_mint_info,
+        Mint::LEN,
+        &token_program_info,
+        &rent_info,
+    )?;
+    create_new_account(
+        &update_authority_info,
+        &long_escrow_account_info,
         Account::LEN,
-        long_escrow_seeds,
+        &token_program_info,
+        &rent_info,
+    )?;
+    create_new_account(
+        &update_authority_info,
+        &short_escrow_account_info,
+        Account::LEN,
+        &token_program_info,
+        &rent_info,
+    )?;
+
+    spl_mint_initialize(
+        &token_program_info,
+        &long_token_mint_info,
+        &mint_authority_info,
+        &mint_authority_info,
+        &rent_info,
+        0,
+    )?;
+    spl_mint_initialize(
+        &token_program_info,
+        &short_token_mint_info,
+        &mint_authority_info,
+        &mint_authority_info,
+        &rent_info,
+        0,
     )?;
     spl_initialize(
         &token_program_info,
@@ -140,16 +136,6 @@ pub fn process_initialize_betting_pool(
         &update_authority_info,
         &rent_info,
     )?;
-
-    create_or_allocate_account_raw(
-        *program_id,
-        short_escrow_account_info,
-        rent_info,
-        system_account_info,
-        update_authority_info,
-        Account::LEN,
-        short_escrow_seeds,
-    )?;
     spl_initialize(
         &token_program_info,
         &short_escrow_account_info,
@@ -157,6 +143,20 @@ pub fn process_initialize_betting_pool(
         &update_authority_info,
         &rent_info,
     )?;
+
+    let long_token_mint: Mint = assert_initialized(long_token_mint_info)?;
+    let short_token_mint: Mint = assert_initialized(short_token_mint_info)?;
+    let long_escrow_account: Account = assert_initialized(long_escrow_account_info)?;
+    let short_escrow_account: Account = assert_initialized(short_escrow_account_info)?;
+
+    assert_mint_authority_matches_mint(&long_token_mint, mint_authority_info)?;
+    assert_mint_authority_matches_mint(&short_token_mint, mint_authority_info)?;
+    assert_owned_by(long_token_mint_info, &spl_token::id())?;
+    assert_owned_by(short_token_mint_info, &spl_token::id())?;
+    assert_keys_equal(*token_program_info.key, spl_token::id())?;
+
+    assert_keys_equal(long_escrow_account.mint, *long_escrow_mint_info.key)?;
+    assert_keys_equal(short_escrow_account.mint, *short_escrow_mint_info.key)?;
 
     // Transfer ownership of the escrow accounts to a PDA
     let (escrow_owner_key, _) = Pubkey::find_program_address(
@@ -190,7 +190,7 @@ pub fn process_initialize_betting_pool(
         system_account_info,
         update_authority_info,
         BettingPool::LEN,
-        long_escrow_seeds,
+        &[],
     )?;
 
     let mut betting_pool = BettingPool::try_from_slice(&pool_account_info.data.borrow_mut())?;
@@ -233,6 +233,8 @@ pub fn process_trade(
     let mint_authority_info = next_account_info(account_info_iter)?;
     let escrow_authority_info = next_account_info(account_info_iter)?;
     let token_program_info = next_account_info(account_info_iter)?;
+
+    msg!("Loaded accounts for Trade");
 
     // Unpack accounts
     let long_token_mint: Mint = assert_initialized(long_token_mint_info)?;

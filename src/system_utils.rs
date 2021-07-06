@@ -12,6 +12,38 @@ use {
 };
 
 #[inline(always)]
+pub fn create_new_account<'a>(
+    from_info: &AccountInfo<'a>,
+    new_account_info: &AccountInfo<'a>,
+    space: usize,
+    owner_info: &AccountInfo<'a>,
+    rent_info: &AccountInfo<'a>, 
+) -> ProgramResult {
+
+    let rent = &Rent::from_account_info(rent_info)?;
+    let required_lamports = rent
+        .minimum_balance(space)
+        .max(1)
+        .saturating_sub(new_account_info.lamports());
+
+    msg!("Transfer {} lamports to the new account", required_lamports);
+    invoke(
+        &system_instruction::create_account(
+            from_info.key, 
+            new_account_info.key,
+            required_lamports,
+            space as u64,
+            owner_info.key
+        ),
+        &[
+            from_info.clone(),
+            new_account_info.clone(),
+        ],
+    )?;
+    Ok(())
+}
+
+#[inline(always)]
 pub fn create_or_allocate_account_raw<'a>(
     program_id: Pubkey,
     new_account_info: &AccountInfo<'a>,

@@ -1,15 +1,40 @@
-
 use {
     solana_program::{
         account_info::AccountInfo,
         entrypoint::ProgramResult,
         program::{invoke, invoke_signed},
-        pubkey::{Pubkey},
+        pubkey::Pubkey,
     },
-    spl_token::{
-        instruction::{AuthorityType, transfer, burn, mint_to, set_authority},
+    spl_token::instruction::{
+        burn, initialize_account, mint_to, set_authority, transfer, AuthorityType,
     },
 };
+
+pub fn spl_initialize<'a>(
+    token_program: &AccountInfo<'a>,
+    new_account: &AccountInfo<'a>,
+    mint: &AccountInfo<'a>,
+    authority: &AccountInfo<'a>,
+    rent: &AccountInfo<'a>,
+) -> ProgramResult {
+    let ix = initialize_account(
+        &*token_program.key,
+        &*new_account.key,
+        &*mint.key,
+        &*authority.key,
+    )?;
+    invoke(
+        &ix,
+        &[
+            new_account.clone(),
+            mint.clone(),
+            authority.clone(),
+            rent.clone(),
+            token_program.clone(),
+        ],
+    )?;
+    Ok(())
+}
 
 pub fn spl_burn<'a>(
     token_program: &AccountInfo<'a>,
@@ -20,20 +45,20 @@ pub fn spl_burn<'a>(
 ) -> ProgramResult {
     let ix = burn(
         &*token_program.key,
-        &*burn_account.key, 
-        &*mint.key, 
-        &*authority.key, 
-        &[], 
+        &*burn_account.key,
+        &*mint.key,
+        &*authority.key,
+        &[],
         amount,
     )?;
     invoke(
-        &ix, 
+        &ix,
         &[
-            burn_account.clone(), 
-            mint.clone(), 
-            authority.clone(), 
-            token_program.clone()
-        ], 
+            burn_account.clone(),
+            mint.clone(),
+            authority.clone(),
+            token_program.clone(),
+        ],
     )?;
     Ok(())
 }
@@ -47,21 +72,50 @@ pub fn spl_mint_to<'a>(
 ) -> ProgramResult {
     let ix = mint_to(
         &*token_program.key,
-        &*mint.key, 
-        &*dest_account.key, 
-        &*authority.key, 
-        &[], 
+        &*mint.key,
+        &*dest_account.key,
+        &*authority.key,
+        &[],
         amount,
     )?;
     invoke(
-        &ix, 
+        &ix,
         &[
-            mint.clone(), 
-            dest_account.clone(), 
-            authority.clone(), 
-            token_program.clone()
-        ], 
+            mint.clone(),
+            dest_account.clone(),
+            authority.clone(),
+            token_program.clone(),
+        ],
     )?;
+    Ok(())
+}
+
+pub fn spl_token_transfer<'a>(
+    token_program: &AccountInfo<'a>,
+    source: &AccountInfo<'a>,
+    destination: &AccountInfo<'a>,
+    owner: &AccountInfo<'a>,
+    amount: u64,
+) -> ProgramResult {
+    if amount > 0 {
+        let ix = transfer(
+            token_program.key,
+            source.key,
+            destination.key,
+            owner.key,
+            &[&owner.key],
+            amount,
+        )?;
+        invoke(
+            &ix,
+            &[
+                source.clone(),
+                destination.clone(),
+                owner.clone(),
+                token_program.clone(),
+            ],
+        )?;
+    }
     Ok(())
 }
 
@@ -69,7 +123,7 @@ pub fn spl_token_transfer_signed<'a>(
     token_program: &AccountInfo<'a>,
     source: &AccountInfo<'a>,
     destination: &AccountInfo<'a>,
-    pda_account:  &AccountInfo<'a>,
+    pda_account: &AccountInfo<'a>,
     amount: u64,
     signers: &[&[u8]],
 ) -> ProgramResult {

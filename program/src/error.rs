@@ -6,6 +6,24 @@ use solana_program::program_error::ProgramError;
 pub enum BettingPoolError {
     #[error("PublicKeyMismatch")]
     PublicKeyMismatch,
+    #[error("InvalidMintAuthority")]
+    InvalidMintAuthority,
+    #[error("NotMintAuthority")]
+    NotMintAuthority,
+    #[error("InvalidSupply")]
+    InvalidSupply,
+    #[error("InvalidWinner")]
+    InvalidWinner,
+    #[error("UninitializedAccount")]
+    UninitializedAccount,
+    #[error("IncorrectOwner")]
+    IncorrectOwner,
+    #[error("AlreadySettled")]
+    AlreadySettled,
+    #[error("BetNotSettled")]
+    BetNotSettled,
+    #[error("TokenNotFoundInPool")]
+    TokenNotFoundInPool,
 }
 
 impl From<BettingPoolError> for ProgramError {

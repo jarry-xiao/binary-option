@@ -1,32 +1,27 @@
-
 use solana_program::{
-    account_info::{
-        AccountInfo,
-    },
-    entrypoint::ProgramResult,
+    account_info::AccountInfo, entrypoint::ProgramResult, program_error::ProgramError,
     pubkey::Pubkey,
-    program_error::ProgramError,
 };
 
+use crate::error::BettingPoolError;
 use borsh::{BorshDeserialize, BorshSerialize};
-use crate::{
-    error::BettingPoolError,
-};
 
 #[repr(C)]
 #[derive(BorshSerialize, BorshDeserialize, Debug, Clone)]
 pub struct BettingPool {
     pub circulation: u64,
+    pub settled: bool,
     pub long_escrow_mint_account_pubkey: Pubkey,
     pub short_escrow_mint_account_pubkey: Pubkey,
     pub long_escrow_account_pubkey: Pubkey,
     pub short_escrow_account_pubkey: Pubkey,
     pub long_mint_account_pubkey: Pubkey,
     pub short_mint_account_pubkey: Pubkey,
+    pub winning_side_pubkey: Pubkey,
 }
 
 impl BettingPool {
-    // pub const LEN: usize = 725;
+    pub const LEN: usize = 233;
 
     pub fn from_account_info(a: &AccountInfo) -> Result<BettingPool, ProgramError> {
         let betting_pool = BettingPool::try_from_slice(&a.data.borrow_mut())?;

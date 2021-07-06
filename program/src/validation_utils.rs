@@ -1,7 +1,5 @@
 use {
-    crate::{
-        error::BettingPoolError,
-    },
+    crate::error::BettingPoolError,
     // borsh::{BorshDeserialize, BorshSerialize},
     solana_program::{
         account_info::AccountInfo,
@@ -14,9 +12,7 @@ use {
         // system_instruction,
         // sysvar::{rent::Rent, Sysvar},
     },
-    spl_token::{
-        state::Mint,
-    },
+    spl_token::state::Mint,
     // std::convert::TryInto,
 };
 
@@ -44,7 +40,7 @@ pub fn assert_mint_authority_matches_mint(
 
 pub fn assert_keys_equal(key1: Pubkey, key2: Pubkey) -> ProgramResult {
     if key1 != key2 {
-        Err(BettingPoolError::MismatchedPublicKeys.into())
+        Err(BettingPoolError::PublicKeyMismatch.into())
     } else {
         Ok(())
     }
@@ -56,7 +52,7 @@ pub fn assert_initialized<T: Pack + IsInitialized>(
 ) -> Result<T, ProgramError> {
     let account: T = T::unpack_unchecked(&account_info.data.borrow())?;
     if !account.is_initialized() {
-        Err(BettingPoolError::Uninitialized.into())
+        Err(BettingPoolError::UninitializedAccount.into())
     } else {
         Ok(account)
     }
@@ -65,14 +61,6 @@ pub fn assert_initialized<T: Pack + IsInitialized>(
 /// assert owned by
 pub fn assert_owned_by(account: &AccountInfo, owner: &Pubkey) -> ProgramResult {
     if account.owner != owner {
-        Err(BettingPoolError::IncorrectOwner.into())
-    } else {
-        Ok(())
-    }
-}
-
-pub fn assert_is_token_program(token_program_info: &AccountInfo)-> ProgramResult {
-    if *token_program_info.key != spl_token::id() {
         Err(BettingPoolError::IncorrectOwner.into())
     } else {
         Ok(())

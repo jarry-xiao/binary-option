@@ -341,7 +341,7 @@ pub fn process_trade(
     match [n_b >= n, n_s >= n] {
         /*
         When n is less than both n_b and n_s, this means that both buyer and seller are simply reducing their existing inventory.
-        Therefore, we can just buy n long tokens and n short tokens from circulation. Both parties are also entitled to the locked up
+        Therefore, we can just remove n long tokens and n short tokens from circulation. Both parties are also entitled to the locked up
         funds for their positions that were closed. This always results in a decrease in total circulation.
         */
         [true, true] => {

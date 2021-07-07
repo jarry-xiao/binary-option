@@ -239,8 +239,6 @@ pub fn process_trade(
     // Unpack accounts
     let long_token_mint: Mint = assert_initialized(long_token_mint_info)?;
     let short_token_mint: Mint = assert_initialized(short_token_mint_info)?;
-    let long_escrow_account: Account = assert_initialized(long_escrow_account_info)?;
-    let short_escrow_account: Account = assert_initialized(short_escrow_account_info)?;
     let buyer_long_token_account: Account = assert_initialized(buyer_long_token_account_info)?;
     let buyer_short_token_account: Account = assert_initialized(buyer_short_token_account_info)?;
     let seller_long_token_account: Account = assert_initialized(seller_long_token_account_info)?;
@@ -360,13 +358,27 @@ pub fn process_trade(
                 &seller_info,
                 n,
             )?;
+            spl_token_transfer(
+                &token_program_info,
+                &buyer_long_account_info,
+                &buyer_short_account_info,
+                &buyer_info,
+                n * buy_price,
+            )?;
+            spl_token_transfer(
+                &token_program_info,
+                &long_escrow_account_info,
+                &seller_long_account_info,
+                &seller_info,
+                n * buy_price,
+            )?;
             spl_token_transfer_signed(
                 &token_program_info,
                 &short_escrow_account_info,
                 &buyer_short_account_info,
                 &escrow_authority_info,
-                n_b * short_escrow_account.amount,
-                betting_pool.circulation,
+                n * sell_price,
+                1,
                 seeds,
             )?;
             spl_token_transfer_signed(
@@ -374,8 +386,8 @@ pub fn process_trade(
                 &long_escrow_account_info,
                 &seller_long_account_info,
                 &escrow_authority_info,
-                n_s * long_escrow_account.amount,
-                betting_pool.circulation,
+                n * buy_price,
+                1,
                 seeds,
             )?;
             betting_pool.decrement_supply(n)?;
@@ -418,24 +430,6 @@ pub fn process_trade(
                 &mint_authority_info,
                 n - n_s,
             )?;
-            spl_token_transfer_signed(
-                &token_program_info,
-                &short_escrow_account_info,
-                &buyer_short_account_info,
-                &escrow_authority_info,
-                n_b * short_escrow_account.amount,
-                betting_pool.circulation,
-                seeds,
-            )?;
-            spl_token_transfer_signed(
-                &token_program_info,
-                &long_escrow_account_info,
-                &seller_long_account_info,
-                &escrow_authority_info,
-                n_s * long_escrow_account.amount,
-                betting_pool.circulation,
-                seeds,
-            )?;
             spl_token_transfer(
                 &token_program_info,
                 &buyer_long_account_info,
@@ -449,6 +443,24 @@ pub fn process_trade(
                 &short_escrow_account_info,
                 &seller_info,
                 (n - n_s) * sell_price,
+            )?;
+            spl_token_transfer_signed(
+                &token_program_info,
+                &short_escrow_account_info,
+                &buyer_short_account_info,
+                &escrow_authority_info,
+                n_b * sell_price,
+                1,
+                seeds,
+            )?;
+            spl_token_transfer_signed(
+                &token_program_info,
+                &long_escrow_account_info,
+                &seller_long_account_info,
+                &escrow_authority_info,
+                n_s * buy_price,
+                1,
+                seeds,
             )?;
             if n > n_b + n_s {
                 betting_pool.increment_supply(n - n_b - n_s);
@@ -486,13 +498,20 @@ pub fn process_trade(
                 &mint_authority_info,
                 n - n_s,
             )?;
+            spl_token_transfer(
+                &token_program_info,
+                &seller_short_account_info,
+                &short_escrow_account_info,
+                &seller_info,
+                (n - n_s) * sell_price,
+            )?;
             spl_token_transfer_signed(
                 &token_program_info,
                 &long_escrow_account_info,
                 &seller_long_account_info,
                 &escrow_authority_info,
-                n_s * long_escrow_account.amount,
-                betting_pool.circulation,
+                n_s * buy_price,
+                1,
                 seeds,
             )?;
             spl_token_transfer_signed(
@@ -500,16 +519,9 @@ pub fn process_trade(
                 &short_escrow_account_info,
                 &buyer_short_account_info,
                 &escrow_authority_info,
-                n_b * short_escrow_account.amount,
-                betting_pool.circulation,
+                n * sell_price,
+                1,
                 seeds,
-            )?;
-            spl_token_transfer(
-                &token_program_info,
-                &seller_short_account_info,
-                &short_escrow_account_info,
-                &seller_info,
-                (n - n_s) * sell_price,
             )?;
             betting_pool.decrement_supply(n_s)?;
         }
@@ -543,13 +555,20 @@ pub fn process_trade(
                 &mint_authority_info,
                 n - n_b,
             )?;
+            spl_token_transfer(
+                &token_program_info,
+                &buyer_long_account_info,
+                &long_escrow_account_info,
+                &buyer_info,
+                (n - n_b) * buy_price,
+            )?;
             spl_token_transfer_signed(
                 &token_program_info,
                 &short_escrow_account_info,
                 &buyer_short_account_info,
                 &escrow_authority_info,
-                n_b * short_escrow_account.amount,
-                betting_pool.circulation,
+                n_b * sell_price,
+                1,
                 seeds,
             )?;
             spl_token_transfer_signed(
@@ -557,16 +576,9 @@ pub fn process_trade(
                 &long_escrow_account_info,
                 &seller_long_account_info,
                 &escrow_authority_info,
-                n_s * long_escrow_account.amount,
-                betting_pool.circulation,
+                n * buy_price,
+                1,
                 seeds,
-            )?;
-            spl_token_transfer(
-                &token_program_info,
-                &buyer_long_account_info,
-                &long_escrow_account_info,
-                &buyer_info,
-                (n - n_b) * buy_price,
             )?;
             betting_pool.decrement_supply(n_b)?;
         }

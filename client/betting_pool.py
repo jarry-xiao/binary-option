@@ -1,7 +1,5 @@
 import json
 from http import HTTPStatus
-from construct import Int8ul, Int64ul
-from construct import Struct as cStruct  # type: ignore
 from cryptography.fernet import Fernet
 import base64
 import base58
@@ -16,13 +14,9 @@ from solana.system_program import transfer, TransferParams, create_account, Crea
 from spl.token._layouts import MINT_LAYOUT, ACCOUNT_LAYOUT
 from spl.token.instructions import (
     mint_to, MintToParams,
-    transfer as spl_transfer, TransferParams as SPLTransferParams,
-    burn, BurnParams,
     initialize_mint, InitializeMintParams,
-    initialize_account, InitializeAccountParams,
 )
 
-METADATA_PROGRAM_ID = 'metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s'
 SYSTEM_PROGRAM_ID = '11111111111111111111111111111111'
 SYSVAR_RENT_ID = 'SysvarRent111111111111111111111111111111111'
 ASSOCIATED_TOKEN_ACCOUNT_PROGRAM_ID = 'ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL'
@@ -99,8 +93,8 @@ def trade_instruction(
         AccountMeta(pubkey=pool_account, is_signer=False, is_writable=True),
         AccountMeta(pubkey=long_escrow_account, is_signer=False, is_writable=True),
         AccountMeta(pubkey=short_escrow_account, is_signer=False, is_writable=True),
-        AccountMeta(pubkey=long_token_mint_account, is_signer=False, is_writable=False),
-        AccountMeta(pubkey=short_token_mint_account, is_signer=False, is_writable=False),
+        AccountMeta(pubkey=long_token_mint_account, is_signer=False, is_writable=True),
+        AccountMeta(pubkey=short_token_mint_account, is_signer=False, is_writable=True),
         AccountMeta(pubkey=buyer, is_signer=True, is_writable=False),
         AccountMeta(pubkey=seller, is_signer=True, is_writable=False),
         AccountMeta(pubkey=buyer_long_account, is_signer=False, is_writable=True),
@@ -111,12 +105,13 @@ def trade_instruction(
         AccountMeta(pubkey=buyer_short_token_account, is_signer=False, is_writable=True),
         AccountMeta(pubkey=seller_long_token_account, is_signer=False, is_writable=True),
         AccountMeta(pubkey=seller_short_token_account, is_signer=False, is_writable=True),
-        AccountMeta(pubkey=mint_authority_account, is_signer=False, is_writable=False),
+        AccountMeta(pubkey=mint_authority_account, is_signer=True, is_writable=False),
         AccountMeta(pubkey=escrow_authority_account, is_signer=False, is_writable=False),
         AccountMeta(pubkey=token_account, is_signer=False, is_writable=False),
     ]
-    data = struct("<BQQQ", 1, size, buyer_price, seller_price)
+    data = struct.pack("<BQQQ", 1, size, buyer_price, seller_price)
     return TransactionInstruction(keys=keys, program_id=PublicKey(BETTING_POOL_PROGRAM_ID), data=data)
+
 
 class BettingPool():
 
@@ -125,76 +120,8 @@ class BettingPool():
         self.public_key = cfg["PUBLIC_KEY"]
         self.cipher = Fernet(cfg["DECRYPTION_KEY"])
 
-    def create_mint(self, api_endpoint, skip_confirmation=True):
-        msg = ''
-        try:
-            client = Client(api_endpoint)
-            msg += "Initialized client"
-            # List non-derived accounts
-            source_account = Account(self.private_key)
-            mint_account = Account()
-            token_account = PublicKey(TOKEN_PROGRAM_ID)
-            msg += " | Gathered accounts"
-            # List signers
-            signers = [source_account, mint_account]
-            # Start transaction
-            tx = Transaction()
-            # Get the minimum rent balance for a mint account
-            try:
-                min_rent_reseponse = client.get_minimum_balance_for_rent_exemption(MINT_LAYOUT.sizeof())
-                lamports = min_rent_reseponse["result"]
-                msg += f" | Fetched minimum rent exemption balance: {lamports * 1e-9} SOL"
-            except Exception as e:
-                msg += " | ERROR: Failed to receive min balance for rent exemption"
-                raise(e)
-            # Generate Mint 
-            create_mint_account_ix = create_account(
-                CreateAccountParams(
-                    from_pubkey=source_account.public_key(),
-                    new_account_pubkey=mint_account.public_key(),
-                    lamports=lamports,
-                    space=MINT_LAYOUT.sizeof(),
-                    program_id=token_account,
-                )
-            )
-            tx = tx.add(create_mint_account_ix)
-            msg += f" | Creating mint account {str(mint_account.public_key())} with {MINT_LAYOUT.sizeof()} bytes"
-            initialize_mint_ix = initialize_mint(
-                InitializeMintParams(
-                    decimals=0,
-                    program_id=token_account,
-                    mint=mint_account.public_key(),
-                    mint_authority=source_account.public_key(),
-                    freeze_authority=source_account.public_key(),
-                )
-            )
-            tx = tx.add(initialize_mint_ix)
-            try:
-                response = client.send_transaction(tx, *signers, opts=types.TxOpts(skip_confirmation=skip_confirmation))
-                return json.dumps(
-                    {
-                        'status': HTTPStatus.OK,
-                        'mint': str(mint_account.public_key()),
-                        'msg': f"Successfully created mint {str(mint_account.public_key())}",
-                        'tx': response.get('result') if skip_confirmation else response['result']['transaction']['signatures'],
-                    }
-                )
-            except Exception as e:
-                msg += f" | ERROR: Encountered exception while attempting to send transaction: {e}"
-                raise(e)
-        except Exception as e:
-            return json.dumps(
-                {
-                    'status': HTTPStatus.BAD_REQUEST,
-                    'msg': msg,
-                }
-            )    
 
     def initialize(self, api_endpoint, long_escrow_mint, short_escrow_mint, skip_confirmation=True):
-        """
-        Deploy a contract to the blockchain (on network that support contracts). Takes the network ID and contract name, plus initialisers of name and symbol. Process may vary significantly between blockchains.
-        Returns status code of success or fail, the contract address, and the native transaction data.
-        """
         msg = ""
         try:
             # Initalize Clinet
@@ -249,7 +176,7 @@ class BettingPool():
                     {
                         'status': HTTPStatus.OK,
                         'betting_pool': str(pool_account),
-                        'msg': f"Successfully created betting pool {str(pool_account)}",
+                        'msg': msg + f" | Successfully created betting pool {str(pool_account)}",
                         'tx': response.get('result') if skip_confirmation else response['result']['transaction']['signatures'],
                     }
                 )
@@ -277,7 +204,7 @@ class BettingPool():
             source_account = Account(self.private_key)
             buyer = Account(buyer_private_key)
             seller = Account(seller_private_key)
-            signers = [buyer, seller]
+            signers = [buyer, seller, source_account]
             pool = self.load_betting_pool(api_endpoint, pool_account)
             # List non-derived accounts
             pool_account = PublicKey(pool_account) 
@@ -295,6 +222,8 @@ class BettingPool():
                 [bytes(long_token_mint_account), bytes(short_token_mint_account), bytes(token_account), bytes(PublicKey(BETTING_POOL_PROGRAM_ID))],
                 PublicKey(BETTING_POOL_PROGRAM_ID),
             )[0]
+
+            tx = Transaction()
 
             accts = set()
             atas = []
@@ -317,11 +246,13 @@ class BettingPool():
                         msg += f" | Creating PDA: {token_pda_address}"
                         associated_token_account_ix = create_associated_token_account_instruction(
                             associated_token_account=token_pda_address,
-                            payer=acct, # signer
+                            payer=source_account.public_key(), # signer
                             wallet_address=acct,
                             token_mint_address=mint_account,
                         )
                         tx = tx.add(associated_token_account_ix)
+                    else:
+                        msg += f" | Fetched PDA: {token_pda_address}"
                     acct_atas.append(token_pda_address)
                 atas.append(acct_atas)
             trade_ix = trade_instruction(
@@ -343,19 +274,18 @@ class BettingPool():
                 mint_authority_account,
                 escrow_owner_account,
                 token_account,
-                size,
-                buyer_price,
-                seller_price,
+                int(size),
+                int(buyer_price),
+                int(seller_price),
             )
-            tx = Transaction().add(trade_ix)
+            tx = tx.add(trade_ix)
             # Send request
-            import pdb; pdb.set_trace()
             try:
                 response = client.send_transaction(tx, *signers, opts=types.TxOpts(skip_confirmation=skip_confirmation))
                 return json.dumps(
                     {
                         'status': HTTPStatus.OK,
-                        'msg': f"Trade successful",
+                        'msg': msg + f" | Trade successful",
                         'tx': response.get('result') if skip_confirmation else response['result']['transaction']['signatures'],
                     }
                 )
@@ -469,6 +399,7 @@ class BettingPool():
                     'msg': msg,
                 }
             )
+
     def mint_to(self, api_endpoint, pool_account, dest, amount, skip_confirmation=True):
         msg = ""
         try:
@@ -483,8 +414,6 @@ class BettingPool():
             dest_account = PublicKey(dest)
             long_escrow_mint_account = PublicKey(pool["long_escrow_mint"]) 
             short_escrow_mint_account = PublicKey(pool["short_escrow_mint"]) 
-            long_token_mint_account = PublicKey(pool["long_mint"]) 
-            short_token_mint_account = PublicKey(pool["short_mint"]) 
             mint_authority_account = source_account.public_key()
             payer_account = source_account.public_key()
             token_account = PublicKey(TOKEN_PROGRAM_ID)
@@ -492,7 +421,7 @@ class BettingPool():
             tx = Transaction()
 
             accts = set()
-            for mint_account in [long_token_mint_account, short_token_mint_account, long_escrow_mint_account, short_escrow_mint_account]:
+            for mint_account in [long_escrow_mint_account, short_escrow_mint_account]:
                 token_pda_address = PublicKey.find_program_address(
                     [bytes(dest_account), bytes(token_account), bytes(mint_account)],
                     PublicKey(ASSOCIATED_TOKEN_ACCOUNT_PROGRAM_ID),
@@ -532,7 +461,7 @@ class BettingPool():
                 return json.dumps(
                     {
                         'status': HTTPStatus.OK,
-                        'msg': f"Success",
+                        'msg': msg + f" | Success",
                         'tx': response.get('result') if skip_confirmation else response['result']['transaction']['signatures'],
                     }
                 )
@@ -546,3 +475,68 @@ class BettingPool():
                     'msg': msg,
                 }
             )     
+
+    def create_mint(self, api_endpoint, skip_confirmation=True):
+        msg = ''
+        try:
+            client = Client(api_endpoint)
+            msg += "Initialized client"
+            # List non-derived accounts
+            source_account = Account(self.private_key)
+            mint_account = Account()
+            token_account = PublicKey(TOKEN_PROGRAM_ID)
+            msg += " | Gathered accounts"
+            # List signers
+            signers = [source_account, mint_account]
+            # Start transaction
+            tx = Transaction()
+            # Get the minimum rent balance for a mint account
+            try:
+                min_rent_reseponse = client.get_minimum_balance_for_rent_exemption(MINT_LAYOUT.sizeof())
+                lamports = min_rent_reseponse["result"]
+                msg += f" | Fetched minimum rent exemption balance: {lamports * 1e-9} SOL"
+            except Exception as e:
+                msg += " | ERROR: Failed to receive min balance for rent exemption"
+                raise(e)
+            # Generate Mint 
+            create_mint_account_ix = create_account(
+                CreateAccountParams(
+                    from_pubkey=source_account.public_key(),
+                    new_account_pubkey=mint_account.public_key(),
+                    lamports=lamports,
+                    space=MINT_LAYOUT.sizeof(),
+                    program_id=token_account,
+                )
+            )
+            tx = tx.add(create_mint_account_ix)
+            msg += f" | Creating mint account {str(mint_account.public_key())} with {MINT_LAYOUT.sizeof()} bytes"
+            initialize_mint_ix = initialize_mint(
+                InitializeMintParams(
+                    decimals=0,
+                    program_id=token_account,
+                    mint=mint_account.public_key(),
+                    mint_authority=source_account.public_key(),
+                    freeze_authority=source_account.public_key(),
+                )
+            )
+            tx = tx.add(initialize_mint_ix)
+            try:
+                response = client.send_transaction(tx, *signers, opts=types.TxOpts(skip_confirmation=skip_confirmation))
+                return json.dumps(
+                    {
+                        'status': HTTPStatus.OK,
+                        'mint': str(mint_account.public_key()),
+                        'msg': f"Successfully created mint {str(mint_account.public_key())}",
+                        'tx': response.get('result') if skip_confirmation else response['result']['transaction']['signatures'],
+                    }
+                )
+            except Exception as e:
+                msg += f" | ERROR: Encountered exception while attempting to send transaction: {e}"
+                raise(e)
+        except Exception as e:
+            return json.dumps(
+                {
+                    'status': HTTPStatus.BAD_REQUEST,
+                    'msg': msg,
+                }
+            )         

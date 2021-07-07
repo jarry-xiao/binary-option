@@ -69,23 +69,25 @@ pub fn spl_burn<'a>(
     authority: &AccountInfo<'a>,
     amount: u64,
 ) -> ProgramResult {
-    let ix = burn(
-        &*token_program.key,
-        &*burn_account.key,
-        &*mint.key,
-        &*authority.key,
-        &[],
-        amount,
-    )?;
-    invoke(
-        &ix,
-        &[
-            burn_account.clone(),
-            mint.clone(),
-            authority.clone(),
-            token_program.clone(),
-        ],
-    )?;
+    if amount > 0 {
+        let ix = burn(
+            &*token_program.key,
+            &*burn_account.key,
+            &*mint.key,
+            &*authority.key,
+            &[],
+            amount,
+        )?;
+        invoke(
+            &ix,
+            &[
+                burn_account.clone(),
+                mint.clone(),
+                authority.clone(),
+                token_program.clone(),
+            ],
+        )?;
+    }
     Ok(())
 }
 
@@ -150,17 +152,18 @@ pub fn spl_token_transfer_signed<'a>(
     source: &AccountInfo<'a>,
     destination: &AccountInfo<'a>,
     pda_account: &AccountInfo<'a>,
-    amount: u64,
+    num: u64,
+    denom: u64,
     signers: &[&[u8]],
 ) -> ProgramResult {
-    if amount > 0 {
+    if num > 0 && denom > 0 {
         let ix = transfer(
             token_program.key,
             source.key,
             destination.key,
             pda_account.key,
             &[&pda_account.key],
-            amount,
+            num / denom,
         )?;
         invoke_signed(
             &ix,

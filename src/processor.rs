@@ -82,7 +82,7 @@ pub fn process_initialize_betting_pool(
     let system_account_info = next_account_info(account_info_iter)?;
     let rent_info = next_account_info(account_info_iter)?;
 
-    msg!("Loaded accounts for InitializeBettingPool");
+    msg!("InitializeBettingPool");
 
     create_new_account(
         &mint_authority_info,
@@ -234,11 +234,13 @@ pub fn process_trade(
     let escrow_authority_info = next_account_info(account_info_iter)?;
     let token_program_info = next_account_info(account_info_iter)?;
 
-    msg!("Loaded accounts for Trade");
+    msg!("Trade");
 
     // Unpack accounts
     let long_token_mint: Mint = assert_initialized(long_token_mint_info)?;
     let short_token_mint: Mint = assert_initialized(short_token_mint_info)?;
+    let long_escrow_account: Account = assert_initialized(long_escrow_account_info)?;
+    let short_escrow_account: Account = assert_initialized(short_escrow_account_info)?;
     let buyer_long_token_account: Account = assert_initialized(buyer_long_token_account_info)?;
     let buyer_short_token_account: Account = assert_initialized(buyer_short_token_account_info)?;
     let seller_long_token_account: Account = assert_initialized(seller_long_token_account_info)?;
@@ -248,6 +250,7 @@ pub fn process_trade(
     let seller_long_account: Account = assert_initialized(seller_long_account_info)?;
     let seller_short_account: Account = assert_initialized(seller_short_account_info)?;
     let mut betting_pool = BettingPool::try_from_slice(&pool_account_info.data.borrow_mut())?;
+
     // Get program derived address for escrow
     let (escrow_owner_key, bump_seed) = Pubkey::find_program_address(
         &[
@@ -272,16 +275,16 @@ pub fn process_trade(
     }
     assert_mint_authority_matches_mint(&long_token_mint, mint_authority_info)?;
     assert_mint_authority_matches_mint(&short_token_mint, mint_authority_info)?;
-    assert_owned_by(long_token_mint_info, &spl_token::id())?;
-    assert_owned_by(short_token_mint_info, &spl_token::id())?;
-    assert_owned_by(buyer_long_token_account_info, buyer_info.key)?;
-    assert_owned_by(buyer_short_token_account_info, buyer_info.key)?;
-    assert_owned_by(seller_long_token_account_info, seller_info.key)?;
-    assert_owned_by(seller_short_token_account_info, seller_info.key)?;
-    assert_owned_by(buyer_long_account_info, buyer_info.key)?;
-    assert_owned_by(buyer_short_account_info, buyer_info.key)?;
-    assert_owned_by(seller_long_account_info, seller_info.key)?;
-    assert_owned_by(seller_short_account_info, seller_info.key)?;
+    assert_keys_equal(*long_token_mint_info.owner, spl_token::id())?;
+    assert_keys_equal(*short_token_mint_info.owner, spl_token::id())?;
+    assert_keys_equal(buyer_long_token_account.owner, *buyer_info.key)?;
+    assert_keys_equal(buyer_short_token_account.owner, *buyer_info.key)?;
+    assert_keys_equal(seller_long_token_account.owner, *seller_info.key)?;
+    assert_keys_equal(seller_short_token_account.owner, *seller_info.key)?;
+    assert_keys_equal(buyer_long_account.owner, *buyer_info.key)?;
+    assert_keys_equal(buyer_short_account.owner, *buyer_info.key)?;
+    assert_keys_equal(seller_long_account.owner, *seller_info.key)?;
+    assert_keys_equal(seller_short_account.owner, *seller_info.key)?;
     assert_keys_equal(escrow_owner_key, *escrow_authority_info.key)?;
     assert_keys_equal(
         *long_token_mint_info.key,
@@ -342,6 +345,7 @@ pub fn process_trade(
         funds for their positions that were closed. This always results in a decrease in total circulation.
         */
         [true, true] => {
+            msg!("Case 1");
             spl_burn(
                 &token_program_info,
                 &buyer_short_token_account_info,
@@ -351,7 +355,7 @@ pub fn process_trade(
             )?;
             spl_burn(
                 &token_program_info,
-                &seller_short_token_account_info,
+                &seller_long_token_account_info,
                 &long_token_mint_info,
                 &seller_info,
                 n,
@@ -359,17 +363,19 @@ pub fn process_trade(
             spl_token_transfer_signed(
                 &token_program_info,
                 &short_escrow_account_info,
-                &buyer_info,
+                &buyer_short_account_info,
                 &escrow_authority_info,
-                n * buy_price,
+                n_b * short_escrow_account.amount,
+                betting_pool.circulation,
                 seeds,
             )?;
             spl_token_transfer_signed(
                 &token_program_info,
                 &long_escrow_account_info,
-                &seller_info,
+                &seller_long_account_info,
                 &escrow_authority_info,
-                n * sell_price,
+                n_s * long_escrow_account.amount,
+                betting_pool.circulation,
                 seeds,
             )?;
             betting_pool.decrement_supply(n)?;
@@ -383,6 +389,7 @@ pub fn process_trade(
         in total circulation.
         */
         [false, false] => {
+            msg!("Case 2");
             spl_burn(
                 &token_program_info,
                 &buyer_short_token_account_info,
@@ -392,7 +399,7 @@ pub fn process_trade(
             )?;
             spl_burn(
                 &token_program_info,
-                &seller_short_token_account_info,
+                &seller_long_token_account_info,
                 &long_token_mint_info,
                 &seller_info,
                 n_s,
@@ -416,7 +423,8 @@ pub fn process_trade(
                 &short_escrow_account_info,
                 &buyer_short_account_info,
                 &escrow_authority_info,
-                n_b * buy_price,
+                n_b * short_escrow_account.amount,
+                betting_pool.circulation,
                 seeds,
             )?;
             spl_token_transfer_signed(
@@ -424,7 +432,8 @@ pub fn process_trade(
                 &long_escrow_account_info,
                 &seller_long_account_info,
                 &escrow_authority_info,
-                n_s * sell_price,
+                n_s * long_escrow_account.amount,
+                betting_pool.circulation,
                 seeds,
             )?;
             spl_token_transfer(
@@ -454,7 +463,8 @@ pub fn process_trade(
         The net change in tokens can be calculated as follows: (-n - n_s + n - n_s) / 2 = -n_s. This always results in a decrease in total
         circulation.
         */
-        [false, true] => {
+        [true, false] => {
+            msg!("Case 3");
             spl_burn(
                 &token_program_info,
                 &buyer_short_token_account_info,
@@ -464,7 +474,7 @@ pub fn process_trade(
             )?;
             spl_burn(
                 &token_program_info,
-                &seller_short_token_account_info,
+                &seller_long_token_account_info,
                 &long_token_mint_info,
                 &seller_info,
                 n_s,
@@ -478,18 +488,20 @@ pub fn process_trade(
             )?;
             spl_token_transfer_signed(
                 &token_program_info,
-                &short_escrow_account_info,
-                &buyer_short_account_info,
+                &long_escrow_account_info,
+                &seller_long_account_info,
                 &escrow_authority_info,
-                n * buy_price,
+                n_s * long_escrow_account.amount,
+                betting_pool.circulation,
                 seeds,
             )?;
             spl_token_transfer_signed(
                 &token_program_info,
-                &long_escrow_account_info,
-                &seller_long_account_info,
+                &short_escrow_account_info,
+                &buyer_short_account_info,
                 &escrow_authority_info,
-                n_s * sell_price,
+                n_b * short_escrow_account.amount,
+                betting_pool.circulation,
                 seeds,
             )?;
             spl_token_transfer(
@@ -508,10 +520,11 @@ pub fn process_trade(
         The net change in tokens can be calculated as follows: (-n - n_b + n - n_b) / 2 = -n_b. This always results in a decrease in total
         circulation.
         */
-        [true, false] => {
+        [false, true] => {
+            msg!("Case 4");
             spl_burn(
                 &token_program_info,
-                &seller_short_token_account_info,
+                &seller_long_token_account_info,
                 &long_token_mint_info,
                 &seller_info,
                 n,
@@ -535,7 +548,8 @@ pub fn process_trade(
                 &short_escrow_account_info,
                 &buyer_short_account_info,
                 &escrow_authority_info,
-                n_b * buy_price,
+                n_b * short_escrow_account.amount,
+                betting_pool.circulation,
                 seeds,
             )?;
             spl_token_transfer_signed(
@@ -543,7 +557,8 @@ pub fn process_trade(
                 &long_escrow_account_info,
                 &seller_long_account_info,
                 &escrow_authority_info,
-                n * sell_price,
+                n_s * long_escrow_account.amount,
+                betting_pool.circulation,
                 seeds,
             )?;
             spl_token_transfer(
@@ -693,7 +708,8 @@ pub fn process_collect(program_id: &Pubkey, accounts: &[AccountInfo]) -> Program
             &long_escrow_account_info,
             &collector_long_account_info,
             &escrow_authority_info,
-            (reward * long_escrow_account.amount) / betting_pool.circulation,
+            reward * long_escrow_account.amount,
+            betting_pool.circulation,
             seeds,
         )?;
         spl_token_transfer_signed(
@@ -701,7 +717,8 @@ pub fn process_collect(program_id: &Pubkey, accounts: &[AccountInfo]) -> Program
             &short_escrow_account_info,
             &collector_short_account_info,
             &escrow_authority_info,
-            (reward * short_escrow_account.amount) / betting_pool.circulation,
+            reward * short_escrow_account.amount,
+            betting_pool.circulation,
             seeds,
         )?;
         spl_burn(

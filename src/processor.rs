@@ -358,20 +358,6 @@ pub fn process_trade(
                 &seller_info,
                 n,
             )?;
-            spl_token_transfer(
-                &token_program_info,
-                &buyer_long_account_info,
-                &buyer_short_account_info,
-                &buyer_info,
-                n * buy_price,
-            )?;
-            spl_token_transfer(
-                &token_program_info,
-                &long_escrow_account_info,
-                &seller_long_account_info,
-                &seller_info,
-                n * buy_price,
-            )?;
             spl_token_transfer_signed(
                 &token_program_info,
                 &short_escrow_account_info,

@@ -24,6 +24,8 @@ pub enum BettingPoolError {
     BetNotSettled,
     #[error("TokenNotFoundInPool")]
     TokenNotFoundInPool,
+    #[error("PublicKeysShouldBeUnique")]
+    PublicKeysShouldBeUnique,
 }
 
 impl From<BettingPoolError> for ProgramError {

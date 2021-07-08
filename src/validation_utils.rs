@@ -46,6 +46,14 @@ pub fn assert_keys_equal(key1: Pubkey, key2: Pubkey) -> ProgramResult {
     }
 }
 
+pub fn assert_keys_unequal(key1: Pubkey, key2: Pubkey) -> ProgramResult {
+    if key1 == key2 {
+        Err(BettingPoolError::PublicKeysShouldBeUnique.into())
+    } else {
+        Ok(())
+    }
+}
+
 /// assert initialized account
 pub fn assert_initialized<T: Pack + IsInitialized>(
     account_info: &AccountInfo,

@@ -11,17 +11,15 @@ use borsh::{BorshDeserialize, BorshSerialize};
 pub struct BettingPool {
     pub circulation: u64,
     pub settled: bool,
-    pub long_escrow_mint_account_pubkey: Pubkey,
-    pub short_escrow_mint_account_pubkey: Pubkey,
-    pub long_escrow_account_pubkey: Pubkey,
-    pub short_escrow_account_pubkey: Pubkey,
+    pub escrow_mint_account_pubkey: Pubkey,
+    pub escrow_account_pubkey: Pubkey,
     pub long_mint_account_pubkey: Pubkey,
     pub short_mint_account_pubkey: Pubkey,
     pub winning_side_pubkey: Pubkey,
 }
 
 impl BettingPool {
-    pub const LEN: usize = 233;
+    pub const LEN: usize = 169;
 
     pub fn from_account_info(a: &AccountInfo) -> Result<BettingPool, ProgramError> {
         let betting_pool = BettingPool::try_from_slice(&a.data.borrow_mut())?;

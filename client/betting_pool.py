@@ -38,10 +38,8 @@ def create_associated_token_account_instruction(associated_token_account, payer,
 
 def initialize_betting_pool_instruction(
     pool_account,
-    long_escrow_mint_account,
-    short_escrow_mint_account,
-    long_escrow_account,
-    short_escrow_account,
+    escrow_mint_account,
+    escrow_account,
     long_token_mint_account,
     short_token_mint_account,
     mint_authority_account,
@@ -52,10 +50,8 @@ def initialize_betting_pool_instruction(
 ):
     keys = [
         AccountMeta(pubkey=pool_account, is_signer=True, is_writable=True),
-        AccountMeta(pubkey=long_escrow_mint_account, is_signer=False, is_writable=False),
-        AccountMeta(pubkey=short_escrow_mint_account, is_signer=False, is_writable=False),
-        AccountMeta(pubkey=long_escrow_account, is_signer=True, is_writable=True),
-        AccountMeta(pubkey=short_escrow_account, is_signer=True, is_writable=True),
+        AccountMeta(pubkey=escrow_mint_account, is_signer=False, is_writable=False),
+        AccountMeta(pubkey=escrow_account, is_signer=True, is_writable=True),
         AccountMeta(pubkey=long_token_mint_account, is_signer=True, is_writable=False),
         AccountMeta(pubkey=short_token_mint_account, is_signer=True, is_writable=False),
         AccountMeta(pubkey=mint_authority_account, is_signer=True, is_writable=False),
@@ -68,16 +64,13 @@ def initialize_betting_pool_instruction(
 
 def trade_instruction(
     pool_account,
-    long_escrow_account,
-    short_escrow_account,
+    escrow_account,
     long_token_mint_account,
     short_token_mint_account,
     buyer,
     seller,
-    buyer_long_account,
-    buyer_short_account,
-    seller_long_account,
-    seller_short_account,
+    buyer_account,
+    seller_account,
     buyer_long_token_account,
     buyer_short_token_account,
     seller_long_token_account,
@@ -91,16 +84,13 @@ def trade_instruction(
 ):
     keys = [
         AccountMeta(pubkey=pool_account, is_signer=False, is_writable=True),
-        AccountMeta(pubkey=long_escrow_account, is_signer=False, is_writable=True),
-        AccountMeta(pubkey=short_escrow_account, is_signer=False, is_writable=True),
+        AccountMeta(pubkey=escrow_account, is_signer=False, is_writable=True),
         AccountMeta(pubkey=long_token_mint_account, is_signer=False, is_writable=True),
         AccountMeta(pubkey=short_token_mint_account, is_signer=False, is_writable=True),
         AccountMeta(pubkey=buyer, is_signer=True, is_writable=False),
         AccountMeta(pubkey=seller, is_signer=True, is_writable=False),
-        AccountMeta(pubkey=buyer_long_account, is_signer=False, is_writable=True),
-        AccountMeta(pubkey=buyer_short_account, is_signer=False, is_writable=True),
-        AccountMeta(pubkey=seller_long_account, is_signer=False, is_writable=True),
-        AccountMeta(pubkey=seller_short_account, is_signer=False, is_writable=True),
+        AccountMeta(pubkey=buyer_account, is_signer=False, is_writable=True),
+        AccountMeta(pubkey=seller_account, is_signer=False, is_writable=True),
         AccountMeta(pubkey=buyer_long_token_account, is_signer=False, is_writable=True),
         AccountMeta(pubkey=buyer_short_token_account, is_signer=False, is_writable=True),
         AccountMeta(pubkey=seller_long_token_account, is_signer=False, is_writable=True),
@@ -136,10 +126,8 @@ class BettingPool():
             short_mint = Account()
             # List non-derived accounts
             pool_account = pool.public_key()
-            long_escrow_mint_account = PublicKey(long_escrow_mint)
-            short_escrow_mint_account = PublicKey(short_escrow_mint)
-            long_escrow_account = long_escrow.public_key()
-            short_escrow_account = short_escrow.public_key()
+            escrow_mint_account = PublicKey(long_escrow_mint)
+            escrow_account = long_escrow.public_key()
             long_token_mint_account = long_mint.public_key()
             short_token_mint_account = short_mint.public_key()
             mint_authority_account = source_account.public_key()
@@ -155,10 +143,8 @@ class BettingPool():
             # Create Token Metadata
             init_betting_pool_ix =  initialize_betting_pool_instruction(
                 pool_account,
-                long_escrow_mint_account,
-                short_escrow_mint_account,
-                long_escrow_account,
-                short_escrow_account,
+                escrow_mint_account,
+                escrow_account,
                 long_token_mint_account,
                 short_token_mint_account,
                 mint_authority_account,
@@ -208,10 +194,8 @@ class BettingPool():
             pool = self.load_betting_pool(api_endpoint, pool_account)
             # List non-derived accounts
             pool_account = PublicKey(pool_account) 
-            long_escrow_account = PublicKey(pool["long_escrow"]) 
-            short_escrow_account = PublicKey(pool["short_escrow"]) 
-            long_escrow_mint_account = PublicKey(pool["long_escrow_mint"]) 
-            short_escrow_mint_account = PublicKey(pool["short_escrow_mint"]) 
+            escrow_account = PublicKey(pool["escrow"]) 
+            escrow_mint_account = PublicKey(pool["escrow_mint"]) 
             long_token_mint_account = PublicKey(pool["long_mint"]) 
             short_token_mint_account = PublicKey(pool["short_mint"]) 
             buyer_account = buyer.public_key()
@@ -229,7 +213,7 @@ class BettingPool():
             atas = []
             for acct in [buyer_account, seller_account]:
                 acct_atas = []
-                for mint_account in (long_token_mint_account, short_token_mint_account, long_escrow_mint_account, short_escrow_mint_account):
+                for mint_account in (long_token_mint_account, short_token_mint_account, escrow_mint_account):
                     token_pda_address = PublicKey.find_program_address(
                         [bytes(acct), bytes(token_account), bytes(mint_account)],
                         PublicKey(ASSOCIATED_TOKEN_ACCOUNT_PROGRAM_ID),
@@ -257,16 +241,13 @@ class BettingPool():
                 atas.append(acct_atas)
             trade_ix = trade_instruction(
                 pool_account,
-                long_escrow_account,
-                short_escrow_account,
+                escrow_account,
                 long_token_mint_account,
                 short_token_mint_account,
                 buyer_account,
                 seller_account,
                 atas[0][2],
-                atas[0][3],
                 atas[1][2],
-                atas[1][3],
                 atas[0][0],
                 atas[0][1],
                 atas[1][0],
@@ -312,20 +293,16 @@ class BettingPool():
                 }
             )
         pubkey = 'B' * 32
-        raw_bytes = struct.unpack(f"<Q?{pubkey}{pubkey}{pubkey}{pubkey}{pubkey}{pubkey}{pubkey}", pool_data)
+        raw_bytes = struct.unpack(f"<Q?{pubkey}{pubkey}{pubkey}{pubkey}{pubkey}", pool_data)
         i = 0
         pool = {}
         pool["circulation"] = raw_bytes[i] 
         i += 1
         pool["settled"] = raw_bytes[i] 
         i += 1
-        pool["long_escrow_mint"] = base58.b58encode(bytes(raw_bytes[i:i+32])).decode('ascii')
+        pool["escrow_mint"] = base58.b58encode(bytes(raw_bytes[i:i+32])).decode('ascii')
         i += 32
-        pool["short_escrow_mint"] = base58.b58encode(bytes(raw_bytes[i:i+32])).decode('ascii')
-        i += 32
-        pool["long_escrow"] = base58.b58encode(bytes(raw_bytes[i:i+32])).decode('ascii')
-        i += 32
-        pool["short_escrow"] = base58.b58encode(bytes(raw_bytes[i:i+32])).decode('ascii')
+        pool["escrow"] = base58.b58encode(bytes(raw_bytes[i:i+32])).decode('ascii')
         i += 32
         pool["long_mint"] = base58.b58encode(bytes(raw_bytes[i:i+32])).decode('ascii')
         i += 32
@@ -412,8 +389,7 @@ class BettingPool():
             # List non-derived accounts
             pool_account = PublicKey(pool_account) 
             dest_account = PublicKey(dest)
-            long_escrow_mint_account = PublicKey(pool["long_escrow_mint"]) 
-            short_escrow_mint_account = PublicKey(pool["short_escrow_mint"]) 
+            escrow_mint_account = PublicKey(pool["escrow_mint"]) 
             mint_authority_account = source_account.public_key()
             payer_account = source_account.public_key()
             token_account = PublicKey(TOKEN_PROGRAM_ID)
@@ -421,7 +397,7 @@ class BettingPool():
             tx = Transaction()
 
             accts = set()
-            for mint_account in [long_escrow_mint_account, short_escrow_mint_account]:
+            for mint_account in [escrow_mint_account]:
                 token_pda_address = PublicKey.find_program_address(
                     [bytes(dest_account), bytes(token_account), bytes(mint_account)],
                     PublicKey(ASSOCIATED_TOKEN_ACCOUNT_PROGRAM_ID),

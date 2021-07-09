@@ -62,7 +62,7 @@ This clause essentially groups 1) and 2) together. In this case, both buyer and 
 ```
 n_b < n && n_s < n
 ```
-This clause groups 2) and 3) together (most complex). In this case both buyer and seller swap positions -- the buyer goes from short to long and the seller goes from long to short. We will first burn the tokens representing the opposite position and then mint new tokens to ensure the buyer's change is `+n` and the seller's change is `-n`. Both parties are also entitled to the locked up funds for their positions that were closed (`n_b * sell_price` for the buyer and `n_s * buy_price` for the seller). The net change in tokens can be calculated as follows: `(-n_b - n_s + 2n - n_b - n_s) / 2 = n - n_b - n_s`. If this quantity is positive, this means that the trade causes a net increase in the total supply of contracts in the betting pool. Otherwise, it results in a net decrease in total circulation.
+This clause groups 2) and 3) together (most complex). In this case, both buyer and seller swap positions -- the buyer goes from short to long and the seller goes from long to short. We will first burn the tokens all exiting tokens for parties and then mint new tokens to ensure the buyer's change is `+n` and the seller's change is `-n`. Both parties are also entitled to the locked up funds for their positions that were closed (`n_b * sell_price` for the buyer and `n_s * buy_price` for the seller). The net change in tokens can be calculated as follows: `(-n_b - n_s + 2n - n_b - n_s) / 2 = n - n_b - n_s`. If this quantity is positive, this means that the trade causes a net increase in the total supply of contracts in the betting pool. Otherwise, it results in a net decrease in total circulation.
 
 ```
 n_b >= n && n_s <  n
@@ -77,7 +77,7 @@ It's easy to see that this is almost identical to the previous case. The net cir
 When all of the dust settles, the pool participants can enter and exit their positions while the pool is live, and the pool will always be fully collateralized!
 
 ### Settle
-`Settle` is invoked when a winner of the bet is decided. This in theory should be done through an oracle by the higher level protocol that uses this primative (composability effects). Once an event is settled, no more trades can occur. One TODO is to potentially add another stage -- first stop trading and settle as a gradual process
+`Settle` is invoked when a winner of the bet is decided. This, in theory, should be done through an oracle by the higher level protocol that uses this primative (composability effects). Once an event is settled, no more trades can occur. One TODO is to potentially add another stage -- first stop trading and settle as a gradual process
 
 ### Collect
 `Collect` is invoked when retrieving funds from a pool after it has fully settled. All of the user's tokens are burned and if they have any of the winning token, the user will receive a proportional stake of the pool (`(# tokens / total circulation) * size of pool`). The circulation of the pool is then reduced to reflect a global change in stake of all participants who have yet to retrieve their funds.

@@ -32,7 +32,7 @@ python -m client.test
 # Instructions
 
 ### InitializeBettingPool
-`InitializeBettingPool` creates a new betting pool where the denominated currency and decimals are specified as arguments. New mints are created for long and short tokens, and the ownership of these mints is transferred to a program derived address.
+`InitializeBettingPool` creates a new betting pool where the denominated decimals are specified as arguments. (The "escrow" mint is included in the list of accounts). New mints are created for long and short tokens, and the ownership of these mints is transferred to a program derived address.
 
 ### Trade
 `Trade` handles all of the complicated wiring of a wager being added to the pool. This is tricky because the existing position of the participants need to be accounted for. There are 3 variables we care about: 

@@ -61,7 +61,7 @@ impl Processor {
                 process_settle(program_id, accounts)
             }
             BettingPoolInstruction::Collect => {
-                msg!("Instruction: Settle");
+                msg!("Instruction: Collect");
                 process_collect(program_id, accounts)
             }
         }

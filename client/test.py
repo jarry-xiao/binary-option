@@ -1,0 +1,111 @@
+import pandas as pd
+from .betting_pool import *
+import time
+
+
+api_endpoint = "https://api.devnet.solana.com/"
+balance_data = []
+
+def get_ata(pk, mint):
+    try:
+        token_pda_address = PublicKey.find_program_address(
+            [bytes(PublicKey(pk)), bytes(PublicKey(TOKEN_PROGRAM_ID)), bytes(PublicKey(mint))],
+            PublicKey(ASSOCIATED_TOKEN_ACCOUNT_PROGRAM_ID),
+        )[0]
+        return get_account(str(token_pda_address))
+    except:
+        return None
+
+def get_account(pk):
+    c = Client(api_endpoint)
+    data = base64.b64decode(c.get_account_info(pk)['result']['value']['data'][0])
+    return ACCOUNT_LAYOUT.parse(data)
+
+def update_and_print_state():
+    pool_data = bp.load_betting_pool(api_endpoint, pool)
+    state = {}
+    try:
+        state["N"] = 1
+        state["c"] = pool_data["circulation"] 
+        state["e_A"] = get_account(pool_data["escrow"]).amount
+        state["a1_LT"] = get_ata(a1['address'], pool_data['long_mint']).amount
+        state["a1_ST"] = get_ata(a1['address'], pool_data['short_mint']).amount
+        state["a1_A"] = get_ata(a1['address'], pool_data['escrow_mint']).amount
+        state["a2_LT"] = get_ata(a2['address'], pool_data['long_mint']).amount
+        state["a2_ST"] = get_ata(a2['address'], pool_data['short_mint']).amount
+        state["a2_A"] = get_ata(a2['address'], pool_data['escrow_mint']).amount
+        state["a3_LT"] = get_ata(a3['address'], pool_data['long_mint']).amount
+        state["a3_ST"] = get_ata(a3['address'], pool_data['short_mint']).amount
+        state["a3_A"] = get_ata(a3['address'], pool_data['escrow_mint']).amount
+    except:
+        pass
+    balance_data.append(state)
+    print(pd.DataFrame(balance_data))
+
+
+account = Account()
+
+bp = BettingPool(
+    {
+        'PRIVATE_KEY': base58.b58encode(account.secret_key()).decode('ascii'),
+        'PUBLIC_KEY': str(account.public_key()),
+        'DECRYPTION_KEY': Fernet.generate_key(),
+    }
+)
+
+client = Client(api_endpoint)
+opts = types.TxOpts()
+resp = {}
+while 'result' not in resp:
+    resp = client.request_airdrop(account.public_key(), int(1e10))
+txn = resp['result']
+elapsed_time = 0
+while elapsed_time < 30:
+    sleep_time = 1
+    time.sleep(sleep_time)
+    resp = client.get_confirmed_transaction(txn)
+    while 'result' not in resp:
+        resp = client.get_confirmed_transaction(txn)
+    if resp["result"]:
+        break
+    elapsed_time += sleep_time
+
+a1 = json.loads(bp.wallet())
+a2 = json.loads(bp.wallet())
+a3 = json.loads(bp.wallet())
+ek1 = bp.cipher.encrypt(bytes(a1['private_key']))
+ek2 = bp.cipher.encrypt(bytes(a2['private_key']))
+ek3 = bp.cipher.encrypt(bytes(a3['private_key']))
+
+tu1 = json.loads(bp.topup(api_endpoint, a1['address']))
+print(tu1)
+tu2 = json.loads(bp.topup(api_endpoint, a2['address']))
+print(tu2)
+tu3 = json.loads(bp.topup(api_endpoint, a3['address']))
+print(tu3)
+
+mint = json.loads(bp.create_mint(api_endpoint, skip_confirmation=False))
+print(mint)
+mint = mint.get("mint")
+
+res = json.loads(bp.initialize(api_endpoint, mint, skip_confirmation=False))
+print(res)
+
+pool = res.get("betting_pool")
+
+print(bp.mint_to(api_endpoint, pool, a1['address'], 1e6, skip_confirmation=False))
+print(bp.mint_to(api_endpoint, pool, a2['address'], 1e6, skip_confirmation=False))
+print(bp.mint_to(api_endpoint, pool, a3['address'], 1e6, skip_confirmation=False))
+
+pool_data = bp.load_betting_pool(api_endpoint, pool)
+
+print(bp.trade(api_endpoint, pool, ek1, ek2, 2, 1, 99, skip_confirmation=False))
+update_and_print_state()
+print(bp.trade(api_endpoint, pool, ek2, ek1, 1, 50, 50, skip_confirmation=False))
+update_and_print_state()
+print(bp.trade(api_endpoint, pool, ek3, ek1, 1, 50, 50, skip_confirmation=False))
+update_and_print_state()
+print(bp.trade(api_endpoint, pool, ek3, ek1, 1, 50, 50, skip_confirmation=False))
+update_and_print_state()
+print(bp.trade(api_endpoint, pool, ek3, ek1, 1, 50, 50, skip_confirmation=False))
+update_and_print_state()

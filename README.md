@@ -1,6 +1,6 @@
 # Betting Pool
 
-This protocol is a primitive version of a betting pool on binary events. Participants can enter a long or short position depending on their conviction. (These sides are set completely arbitrarily). The eventual goal is to have a higher level program manage the pool and handle settlements with an oracle based voting approach. Every bet in the pool involves 2 parties (1 long and 1 short) each depositing some collateral. Because bets are made on binary event, the sum of collateral will be equal to a mutiple of some power of 10 (`10 ** N` where `N` is configurable).
+This protocol is a primitive version of a betting pool on binary events. Participants can enter long or short positions depending on their conviction. (These sides are set completely arbitrarily). The eventual goal is to have a higher-level program manage the pool and handle settlements with an oracle-based voting approach. Every bet in the pool involves 2 parties (1 long and 1 short) each depositing some collateral. Because bets are made on binary events, the sum of collateral will be equal to a mutiple of some power of 10 (`10 ** N` where `N` is configurable).
 
 The module contains the Rust implementation of protocol as well as a Python client and test suite.
 

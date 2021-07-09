@@ -53,7 +53,7 @@ We know from our college combanatorics/discrete math class that there are 3! = 6
 5) n_b > n   > n_s
 6) n_s > n   > n_b
 ```
-This is a lot of cases to consider, but we can group them into a few smaller categories:
+This is a lot of cases to consider, but we can group them into combined categories:
 ```
 n_b >= n && n_s >= n
 ```

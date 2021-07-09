@@ -35,7 +35,7 @@ python -m client.test
 `InitializeBettingPool` creates a new betting pool where the denominated decimals are specified as arguments. (The "escrow" mint is included in the list of accounts). New mints are created for long and short tokens, and the ownership of these mints is transferred to a program derived address.
 
 ### Trade
-`Trade` handles all of the complicated wiring of a wager being added to the pool. This is tricky because the existing position of the participants need to be accounted for. There are 3 variables we care about: 
+`Trade` handles all of the complicated wiring of a wager being added to the pool. This is tricky because the existing positions of the participants needs to be accounted for. There are 3 variables we care about: 
 
 `n` the number of contracts traded
 
@@ -43,7 +43,7 @@ python -m client.test
 
 `n_s` the number of long contracts owned by the seller
 
-We know from our college combanatorics/discrete math class that there are 3! = 6 ways to order 3 items. Let's assume (for now) that there's no equality and list out all configurations of how these numbers can bet ordered from largest to smallest:
+We know from our college combanatorics/discrete math class that there are 3! = 6 ways to order 3 items. Let's list out all configurations of how these numbers can bet ordered from largest to smallest (assuming all distinct):
 
 ```
 1) n_b > n_s > n

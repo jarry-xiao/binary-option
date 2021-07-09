@@ -17,9 +17,8 @@ pub fn create_new_account<'a>(
     new_account_info: &AccountInfo<'a>,
     space: usize,
     owner_info: &AccountInfo<'a>,
-    rent_info: &AccountInfo<'a>, 
+    rent_info: &AccountInfo<'a>,
 ) -> ProgramResult {
-
     let rent = &Rent::from_account_info(rent_info)?;
     let required_lamports = rent
         .minimum_balance(space)
@@ -29,16 +28,13 @@ pub fn create_new_account<'a>(
     msg!("Transfer {} lamports to the new account", required_lamports);
     invoke(
         &system_instruction::create_account(
-            from_info.key, 
+            from_info.key,
             new_account_info.key,
             required_lamports,
             space as u64,
-            owner_info.key
+            owner_info.key,
         ),
-        &[
-            from_info.clone(),
-            new_account_info.clone(),
-        ],
+        &[from_info.clone(), new_account_info.clone()],
     )?;
     Ok(())
 }

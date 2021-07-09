@@ -6,7 +6,7 @@ use {
         pubkey::Pubkey,
     },
     spl_token::instruction::{
-        burn, initialize_mint, initialize_account, mint_to, set_authority, transfer, AuthorityType,
+        burn, initialize_account, initialize_mint, mint_to, set_authority, transfer, AuthorityType,
     },
 };
 
@@ -17,12 +17,7 @@ pub fn spl_initialize<'a>(
     authority: &AccountInfo<'a>,
     rent: &AccountInfo<'a>,
 ) -> ProgramResult {
-    let ix = initialize_account(
-        token_program.key,
-        new_account.key,
-        mint.key,
-        authority.key,
-    )?;
+    let ix = initialize_account(token_program.key, new_account.key, mint.key, authority.key)?;
     invoke(
         &ix,
         &[
@@ -53,11 +48,7 @@ pub fn spl_mint_initialize<'a>(
     )?;
     invoke(
         &ix,
-        &[
-            mint.clone(),
-            rent_info.clone(),
-            token_program.clone(),
-        ],
+        &[mint.clone(), rent_info.clone(), token_program.clone()],
     )?;
     Ok(())
 }

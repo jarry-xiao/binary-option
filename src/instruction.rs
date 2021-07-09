@@ -63,7 +63,7 @@ pub fn initailize_betting_pool(
             AccountMeta::new_readonly(solana_program::system_program::id(), false),
             AccountMeta::new_readonly(sysvar::rent::id(), false),
         ],
-        data: BettingPoolInstruction::InitializeBettingPool(InitializeBettingPoolArgs{ decimals })
+        data: BettingPoolInstruction::InitializeBettingPool(InitializeBettingPoolArgs { decimals })
             .try_to_vec()
             .unwrap(),
     }

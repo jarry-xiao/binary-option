@@ -1,10 +1,23 @@
 import pandas as pd
 from .betting_pool import *
 import time
+from spl.token.client import Token
 
 
 api_endpoint = "https://api.devnet.solana.com/"
 balance_data = []
+
+def await_confirmation(client, txn):
+    elapsed_time = 0
+    while elapsed_time < 30:
+        sleep_time = 1
+        time.sleep(sleep_time)
+        resp = client.get_confirmed_transaction(txn)
+        while 'result' not in resp:
+            resp = client.get_confirmed_transaction(txn)
+        if resp["result"]:
+            break
+        elapsed_time += sleep_time
 
 def get_ata(pk, mint):
     try:
@@ -28,15 +41,15 @@ def update_and_print_state():
         state["N"] = 1
         state["c"] = pool_data["circulation"] 
         state["e_A"] = get_account(pool_data["escrow"]).amount
-        state["a1_LT"] = get_ata(a1['address'], pool_data['long_mint']).amount
-        state["a1_ST"] = get_ata(a1['address'], pool_data['short_mint']).amount
-        state["a1_A"] = get_ata(a1['address'], pool_data['escrow_mint']).amount
-        state["a2_LT"] = get_ata(a2['address'], pool_data['long_mint']).amount
-        state["a2_ST"] = get_ata(a2['address'], pool_data['short_mint']).amount
-        state["a2_A"] = get_ata(a2['address'], pool_data['escrow_mint']).amount
-        state["a3_LT"] = get_ata(a3['address'], pool_data['long_mint']).amount
-        state["a3_ST"] = get_ata(a3['address'], pool_data['short_mint']).amount
-        state["a3_A"] = get_ata(a3['address'], pool_data['escrow_mint']).amount
+        state["a1_LT"] = get_ata(str(a1.public_key()), pool_data['long_mint']).amount
+        state["a1_ST"] = get_ata(str(a1.public_key()), pool_data['short_mint']).amount
+        state["a1_A"] =  get_ata(str(a1.public_key()), pool_data['escrow_mint']).amount
+        state["a2_LT"] = get_ata(str(a2.public_key()), pool_data['long_mint']).amount
+        state["a2_ST"] = get_ata(str(a2.public_key()), pool_data['short_mint']).amount
+        state["a2_A"] =  get_ata(str(a2.public_key()), pool_data['escrow_mint']).amount
+        state["a3_LT"] = get_ata(str(a3.public_key()), pool_data['long_mint']).amount
+        state["a3_ST"] = get_ata(str(a3.public_key()), pool_data['short_mint']).amount
+        state["a3_A"] =  get_ata(str(a3.public_key()), pool_data['escrow_mint']).amount
     except:
         pass
     balance_data.append(state)
@@ -59,43 +72,42 @@ resp = {}
 while 'result' not in resp:
     resp = client.request_airdrop(account.public_key(), int(1e10))
 txn = resp['result']
-elapsed_time = 0
-while elapsed_time < 30:
-    sleep_time = 1
-    time.sleep(sleep_time)
-    resp = client.get_confirmed_transaction(txn)
-    while 'result' not in resp:
-        resp = client.get_confirmed_transaction(txn)
-    if resp["result"]:
-        break
-    elapsed_time += sleep_time
+await_confirmation(client, txn)
 
-a1 = json.loads(bp.wallet())
-a2 = json.loads(bp.wallet())
-a3 = json.loads(bp.wallet())
-ek1 = bp.cipher.encrypt(bytes(a1['private_key']))
-ek2 = bp.cipher.encrypt(bytes(a2['private_key']))
-ek3 = bp.cipher.encrypt(bytes(a3['private_key']))
+a1 = Account() 
+a2 = Account()
+a3 = Account()
+ek1 = bp.cipher.encrypt(a1.secret_key())
+ek2 = bp.cipher.encrypt(a2.secret_key())
+ek3 = bp.cipher.encrypt(a3.secret_key())
 
-tu1 = json.loads(bp.topup(api_endpoint, a1['address']))
+tu1 = json.loads(bp.topup(api_endpoint, str(a1.public_key())))
 print(tu1)
-tu2 = json.loads(bp.topup(api_endpoint, a2['address']))
+tu2 = json.loads(bp.topup(api_endpoint, str(a2.public_key())))
 print(tu2)
-tu3 = json.loads(bp.topup(api_endpoint, a3['address']))
+tu3 = json.loads(bp.topup(api_endpoint, str(a3.public_key())))
 print(tu3)
 
-mint = json.loads(bp.create_mint(api_endpoint, skip_confirmation=False))
-print(mint)
-mint = mint.get("mint")
+
+token = Token.create_mint(
+    client,
+    Account(bp.private_key),
+    PublicKey(bp.public_key),
+    0,
+    PublicKey(TOKEN_PROGRAM_ID),
+    PublicKey(bp.public_key),
+    skip_confirmation=False,
+)
+
+mint = str(token.pubkey)
 
 res = json.loads(bp.initialize(api_endpoint, mint, skip_confirmation=False))
 print(res)
 
 pool = res.get("betting_pool")
-
-print(bp.mint_to(api_endpoint, pool, a1['address'], 1e6, skip_confirmation=False))
-print(bp.mint_to(api_endpoint, pool, a2['address'], 1e6, skip_confirmation=False))
-print(bp.mint_to(api_endpoint, pool, a3['address'], 1e6, skip_confirmation=False))
+print(bp.mint_to(api_endpoint, pool, str(a1.public_key()), 1e6, skip_confirmation=False))
+print(bp.mint_to(api_endpoint, pool, str(a2.public_key()), 1e6, skip_confirmation=False))
+print(bp.mint_to(api_endpoint, pool, str(a3.public_key()), 1e6, skip_confirmation=False))
 
 pool_data = bp.load_betting_pool(api_endpoint, pool)
 

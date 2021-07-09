@@ -2,22 +2,14 @@ use crate::{
     error::BettingPoolError,
     instruction::BettingPoolInstruction,
     spl_utils::{
-        spl_burn,
-        spl_initialize,
-        spl_mint_initialize,
-        spl_mint_to,
-        spl_set_authority,
-        spl_token_transfer,
-        spl_token_transfer_signed,
+        spl_burn, spl_initialize, spl_mint_initialize, spl_mint_to, spl_set_authority,
+        spl_token_transfer, spl_token_transfer_signed,
     },
     state::BettingPool,
     system_utils::{create_new_account, create_or_allocate_account_raw},
     validation_utils::{
-        assert_initialized,
-        assert_keys_equal,
-        assert_keys_unequal,
-        assert_mint_authority_matches_mint,
-        assert_owned_by,
+        assert_initialized, assert_keys_equal, assert_keys_unequal,
+        assert_mint_authority_matches_mint, assert_owned_by,
     },
 };
 use borsh::{BorshDeserialize, BorshSerialize};
@@ -144,7 +136,7 @@ pub fn process_initialize_betting_pool(
     assert_keys_equal(escrow_account.mint, *escrow_mint_info.key)?;
 
     // Transfer ownership of the escrow accounts to a PDA
-    let (escrow_owner_key, _) = Pubkey::find_program_address(
+    let (authority_key, _) = Pubkey::find_program_address(
         &[
             long_token_mint_info.key.as_ref(),
             short_token_mint_info.key.as_ref(),
@@ -156,21 +148,21 @@ pub fn process_initialize_betting_pool(
     spl_set_authority(
         token_program_info,
         escrow_account_info,
-        Some(escrow_owner_key),
+        Some(authority_key),
         AuthorityType::AccountOwner,
         update_authority_info,
     )?;
     spl_set_authority(
         token_program_info,
         long_token_mint_info,
-        Some(escrow_owner_key),
+        Some(authority_key),
         AuthorityType::MintTokens,
         update_authority_info,
     )?;
     spl_set_authority(
         token_program_info,
         short_token_mint_info,
-        Some(escrow_owner_key),
+        Some(authority_key),
         AuthorityType::MintTokens,
         update_authority_info,
     )?;
@@ -219,9 +211,8 @@ pub fn process_trade(
     let buyer_short_token_account_info = next_account_info(account_info_iter)?;
     let seller_long_token_account_info = next_account_info(account_info_iter)?;
     let seller_short_token_account_info = next_account_info(account_info_iter)?;
-    let escrow_authority_info = next_account_info(account_info_iter)?;
+    let authority_info = next_account_info(account_info_iter)?;
     let token_program_info = next_account_info(account_info_iter)?;
-
 
     // Unpack accounts
     let buyer_long_token_account: Account = assert_initialized(buyer_long_token_account_info)?;
@@ -233,7 +224,7 @@ pub fn process_trade(
     let mut betting_pool = BettingPool::try_from_slice(&pool_account_info.data.borrow_mut())?;
 
     // Get program derived address for escrow
-    let (escrow_owner_key, bump_seed) = Pubkey::find_program_address(
+    let (authority_key, bump_seed) = Pubkey::find_program_address(
         &[
             long_token_mint_info.key.as_ref(),
             short_token_mint_info.key.as_ref(),
@@ -266,7 +257,7 @@ pub fn process_trade(
     assert_keys_equal(seller_short_token_account.owner, *seller_info.key)?;
     assert_keys_equal(buyer_account.owner, *buyer_info.key)?;
     assert_keys_equal(seller_account.owner, *seller_info.key)?;
-    assert_keys_equal(escrow_owner_key, *escrow_authority_info.key)?;
+    assert_keys_equal(authority_key, *authority_info.key)?;
     assert_keys_equal(
         *long_token_mint_info.key,
         betting_pool.long_mint_account_pubkey,
@@ -275,10 +266,7 @@ pub fn process_trade(
         *short_token_mint_info.key,
         betting_pool.short_mint_account_pubkey,
     )?;
-    assert_keys_equal(
-        *escrow_account_info.key,
-        betting_pool.escrow_account_pubkey,
-    )?;
+    assert_keys_equal(*escrow_account_info.key, betting_pool.escrow_account_pubkey)?;
     assert_keys_equal(
         buyer_long_token_account.mint,
         betting_pool.long_mint_account_pubkey,
@@ -295,14 +283,8 @@ pub fn process_trade(
         seller_short_token_account.mint,
         betting_pool.short_mint_account_pubkey,
     )?;
-    assert_keys_equal(
-        buyer_account.mint,
-        betting_pool.escrow_mint_account_pubkey,
-    )?;
-    assert_keys_equal(
-        seller_account.mint,
-        betting_pool.escrow_mint_account_pubkey,
-    )?;
+    assert_keys_equal(buyer_account.mint, betting_pool.escrow_mint_account_pubkey)?;
+    assert_keys_equal(seller_account.mint, betting_pool.escrow_mint_account_pubkey)?;
 
     let n = size;
     let n_b = buyer_short_token_account.amount;
@@ -333,7 +315,7 @@ pub fn process_trade(
                 &token_program_info,
                 &escrow_account_info,
                 &buyer_account_info,
-                &escrow_authority_info,
+                &authority_info,
                 n * sell_price,
                 1,
                 seeds,
@@ -342,7 +324,7 @@ pub fn process_trade(
                 &token_program_info,
                 &escrow_account_info,
                 &seller_account_info,
-                &escrow_authority_info,
+                &authority_info,
                 n * buy_price,
                 1,
                 seeds,
@@ -377,7 +359,7 @@ pub fn process_trade(
                 &token_program_info,
                 &buyer_long_token_account_info,
                 &long_token_mint_info,
-                &escrow_authority_info,
+                &authority_info,
                 n - n_b,
                 seeds,
             )?;
@@ -385,9 +367,9 @@ pub fn process_trade(
                 &token_program_info,
                 &seller_short_token_account_info,
                 &short_token_mint_info,
-                &escrow_authority_info,
+                &authority_info,
                 n - n_s,
-                seeds
+                seeds,
             )?;
             spl_token_transfer(
                 &token_program_info,
@@ -407,7 +389,7 @@ pub fn process_trade(
                 &token_program_info,
                 &escrow_account_info,
                 &buyer_account_info,
-                &escrow_authority_info,
+                &authority_info,
                 n_b * sell_price,
                 1,
                 seeds,
@@ -416,7 +398,7 @@ pub fn process_trade(
                 &token_program_info,
                 &escrow_account_info,
                 &seller_account_info,
-                &escrow_authority_info,
+                &authority_info,
                 n_s * buy_price,
                 1,
                 seeds,
@@ -454,7 +436,7 @@ pub fn process_trade(
                 &token_program_info,
                 &seller_short_token_account_info,
                 &short_token_mint_info,
-                &escrow_authority_info,
+                &authority_info,
                 n - n_s,
                 seeds,
             )?;
@@ -469,7 +451,7 @@ pub fn process_trade(
                 &token_program_info,
                 &escrow_account_info,
                 &seller_account_info,
-                &escrow_authority_info,
+                &authority_info,
                 n_s * buy_price,
                 1,
                 seeds,
@@ -478,7 +460,7 @@ pub fn process_trade(
                 &token_program_info,
                 &escrow_account_info,
                 &buyer_account_info,
-                &escrow_authority_info,
+                &authority_info,
                 n * sell_price,
                 1,
                 seeds,
@@ -512,7 +494,7 @@ pub fn process_trade(
                 &token_program_info,
                 &buyer_long_token_account_info,
                 &long_token_mint_info,
-                &escrow_authority_info,
+                &authority_info,
                 n - n_b,
                 seeds,
             )?;
@@ -527,7 +509,7 @@ pub fn process_trade(
                 &token_program_info,
                 &escrow_account_info,
                 &buyer_account_info,
-                &escrow_authority_info,
+                &authority_info,
                 n_b * sell_price,
                 1,
                 seeds,
@@ -536,7 +518,7 @@ pub fn process_trade(
                 &token_program_info,
                 &escrow_account_info,
                 &seller_account_info,
-                &escrow_authority_info,
+                &authority_info,
                 n * buy_price,
                 1,
                 seeds,
@@ -638,14 +620,8 @@ pub fn process_collect(program_id: &Pubkey, accounts: &[AccountInfo]) -> Program
         *short_token_mint_info.key,
         betting_pool.short_mint_account_pubkey,
     )?;
-    assert_keys_equal(
-        *escrow_account_info.key,
-        betting_pool.escrow_account_pubkey,
-    )?;
-    assert_keys_equal(
-        *escrow_account_info.key,
-        betting_pool.escrow_account_pubkey,
-    )?;
+    assert_keys_equal(*escrow_account_info.key, betting_pool.escrow_account_pubkey)?;
+    assert_keys_equal(*escrow_account_info.key, betting_pool.escrow_account_pubkey)?;
     assert_keys_equal(
         collector_long_token_account.mint,
         betting_pool.long_mint_account_pubkey,

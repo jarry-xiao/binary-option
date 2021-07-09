@@ -8,6 +8,12 @@ use borsh::{BorshDeserialize, BorshSerialize};
 
 #[repr(C)]
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
+pub struct InitializeBettingPoolArgs {
+    pub decimals: u8,
+}
+
+#[repr(C)]
+#[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
 pub struct TradeArgs {
     pub size: u64,
     pub buy_price: u64,
@@ -17,7 +23,7 @@ pub struct TradeArgs {
 #[derive(BorshSerialize, BorshDeserialize, Clone)]
 pub enum BettingPoolInstruction {
     // TODO: Add comments here
-    InitializeBettingPool,
+    InitializeBettingPool(InitializeBettingPoolArgs),
 
     Trade(TradeArgs),
 
@@ -39,6 +45,7 @@ pub fn initailize_betting_pool(
     short_token_mint: Pubkey,
     mint_authority: Pubkey,
     update_authority: Pubkey,
+    decimals: u8,
 ) -> Instruction {
     Instruction {
         program_id,
@@ -56,7 +63,7 @@ pub fn initailize_betting_pool(
             AccountMeta::new_readonly(solana_program::system_program::id(), false),
             AccountMeta::new_readonly(sysvar::rent::id(), false),
         ],
-        data: BettingPoolInstruction::InitializeBettingPool
+        data: BettingPoolInstruction::InitializeBettingPool(InitializeBettingPoolArgs{ decimals })
             .try_to_vec()
             .unwrap(),
     }

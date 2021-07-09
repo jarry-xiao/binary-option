@@ -97,6 +97,7 @@ pub fn spl_mint_to<'a>(
     mint: &AccountInfo<'a>,
     authority: &AccountInfo<'a>,
     amount: u64,
+    signers: &[&[u8]],
 ) -> ProgramResult {
     let ix = mint_to(
         &*token_program.key,
@@ -106,7 +107,7 @@ pub fn spl_mint_to<'a>(
         &[],
         amount,
     )?;
-    invoke(
+    invoke_signed(
         &ix,
         &[
             mint.clone(),
@@ -114,6 +115,7 @@ pub fn spl_mint_to<'a>(
             authority.clone(),
             token_program.clone(),
         ],
+        &[&signers],
     )?;
     Ok(())
 }

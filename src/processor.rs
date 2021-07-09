@@ -42,9 +42,9 @@ impl Processor {
     ) -> ProgramResult {
         let instruction = BettingPoolInstruction::try_from_slice(instruction_data)?;
         match instruction {
-            BettingPoolInstruction::InitializeBettingPool => {
+            BettingPoolInstruction::InitializeBettingPool(args) => {
                 msg!("Instruction: InitializeBettingPool");
-                process_initialize_betting_pool(program_id, accounts)
+                process_initialize_betting_pool(program_id, accounts, args.decimals)
             }
             BettingPoolInstruction::Trade(args) => {
                 msg!("Instruction: Trade");
@@ -71,7 +71,9 @@ impl Processor {
 pub fn process_initialize_betting_pool(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
+    decimals: u8,
 ) -> ProgramResult {
+    msg!("InitializeBettingPool");
     let account_info_iter = &mut accounts.iter();
     let pool_account_info = next_account_info(account_info_iter)?;
     let escrow_mint_info = next_account_info(account_info_iter)?;
@@ -83,8 +85,6 @@ pub fn process_initialize_betting_pool(
     let token_program_info = next_account_info(account_info_iter)?;
     let system_account_info = next_account_info(account_info_iter)?;
     let rent_info = next_account_info(account_info_iter)?;
-
-    msg!("InitializeBettingPool");
 
     create_new_account(
         &mint_authority_info,
@@ -160,6 +160,20 @@ pub fn process_initialize_betting_pool(
         AuthorityType::AccountOwner,
         update_authority_info,
     )?;
+    spl_set_authority(
+        token_program_info,
+        long_token_mint_info,
+        Some(escrow_owner_key),
+        AuthorityType::MintTokens,
+        update_authority_info,
+    )?;
+    spl_set_authority(
+        token_program_info,
+        short_token_mint_info,
+        Some(escrow_owner_key),
+        AuthorityType::MintTokens,
+        update_authority_info,
+    )?;
 
     create_or_allocate_account_raw(
         *program_id,
@@ -172,6 +186,7 @@ pub fn process_initialize_betting_pool(
     )?;
 
     let mut betting_pool = BettingPool::try_from_slice(&pool_account_info.data.borrow_mut())?;
+    betting_pool.decimals = decimals;
     betting_pool.circulation = 0;
     betting_pool.settled = false;
     betting_pool.long_mint_account_pubkey = *long_token_mint_info.key;
@@ -190,6 +205,7 @@ pub fn process_trade(
     buy_price: u64,
     sell_price: u64,
 ) -> ProgramResult {
+    msg!("Trade");
     let account_info_iter = &mut accounts.iter();
     let pool_account_info = next_account_info(account_info_iter)?;
     let escrow_account_info = next_account_info(account_info_iter)?;
@@ -203,15 +219,11 @@ pub fn process_trade(
     let buyer_short_token_account_info = next_account_info(account_info_iter)?;
     let seller_long_token_account_info = next_account_info(account_info_iter)?;
     let seller_short_token_account_info = next_account_info(account_info_iter)?;
-    let mint_authority_info = next_account_info(account_info_iter)?;
     let escrow_authority_info = next_account_info(account_info_iter)?;
     let token_program_info = next_account_info(account_info_iter)?;
 
-    msg!("Trade");
 
     // Unpack accounts
-    let long_token_mint: Mint = assert_initialized(long_token_mint_info)?;
-    let short_token_mint: Mint = assert_initialized(short_token_mint_info)?;
     let buyer_long_token_account: Account = assert_initialized(buyer_long_token_account_info)?;
     let buyer_short_token_account: Account = assert_initialized(buyer_short_token_account_info)?;
     let seller_long_token_account: Account = assert_initialized(seller_long_token_account_info)?;
@@ -239,11 +251,12 @@ pub fn process_trade(
     ];
 
     // Validate data
+    if buy_price + sell_price != u64::pow(10, betting_pool.decimals as u32) {
+        return Err(BettingPoolError::TradePricesIncorrect.into());
+    }
     if betting_pool.settled {
         return Err(BettingPoolError::AlreadySettled.into());
     }
-    assert_mint_authority_matches_mint(&long_token_mint, mint_authority_info)?;
-    assert_mint_authority_matches_mint(&short_token_mint, mint_authority_info)?;
     assert_keys_unequal(*buyer_info.key, *seller_info.key)?;
     assert_keys_equal(*long_token_mint_info.owner, spl_token::id())?;
     assert_keys_equal(*short_token_mint_info.owner, spl_token::id())?;
@@ -364,15 +377,17 @@ pub fn process_trade(
                 &token_program_info,
                 &buyer_long_token_account_info,
                 &long_token_mint_info,
-                &mint_authority_info,
+                &escrow_authority_info,
                 n - n_b,
+                seeds,
             )?;
             spl_mint_to(
                 &token_program_info,
                 &seller_short_token_account_info,
                 &short_token_mint_info,
-                &mint_authority_info,
+                &escrow_authority_info,
                 n - n_s,
+                seeds
             )?;
             spl_token_transfer(
                 &token_program_info,
@@ -439,8 +454,9 @@ pub fn process_trade(
                 &token_program_info,
                 &seller_short_token_account_info,
                 &short_token_mint_info,
-                &mint_authority_info,
+                &escrow_authority_info,
                 n - n_s,
+                seeds,
             )?;
             spl_token_transfer(
                 &token_program_info,
@@ -496,8 +512,9 @@ pub fn process_trade(
                 &token_program_info,
                 &buyer_long_token_account_info,
                 &long_token_mint_info,
-                &mint_authority_info,
+                &escrow_authority_info,
                 n - n_b,
+                seeds,
             )?;
             spl_token_transfer(
                 &token_program_info,

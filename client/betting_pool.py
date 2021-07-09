@@ -47,6 +47,7 @@ def initialize_betting_pool_instruction(
     token_account,
     system_account,
     rent_account,
+    decimals
 ):
     keys = [
         AccountMeta(pubkey=pool_account, is_signer=True, is_writable=True),
@@ -60,7 +61,8 @@ def initialize_betting_pool_instruction(
         AccountMeta(pubkey=system_account, is_signer=False, is_writable=False),
         AccountMeta(pubkey=rent_account, is_signer=False, is_writable=False),
     ]
-    return TransactionInstruction(keys=keys, program_id=PublicKey(BETTING_POOL_PROGRAM_ID), data=bytes([0]))
+    data = struct.pack("<BB", 0, decimals)
+    return TransactionInstruction(keys=keys, program_id=PublicKey(BETTING_POOL_PROGRAM_ID), data=data)
 
 def trade_instruction(
     pool_account,
@@ -75,7 +77,6 @@ def trade_instruction(
     buyer_short_token_account,
     seller_long_token_account,
     seller_short_token_account,
-    mint_authority_account,
     escrow_authority_account,
     token_account,
     size,
@@ -95,7 +96,6 @@ def trade_instruction(
         AccountMeta(pubkey=buyer_short_token_account, is_signer=False, is_writable=True),
         AccountMeta(pubkey=seller_long_token_account, is_signer=False, is_writable=True),
         AccountMeta(pubkey=seller_short_token_account, is_signer=False, is_writable=True),
-        AccountMeta(pubkey=mint_authority_account, is_signer=True, is_writable=False),
         AccountMeta(pubkey=escrow_authority_account, is_signer=False, is_writable=False),
         AccountMeta(pubkey=token_account, is_signer=False, is_writable=False),
     ]
@@ -111,7 +111,7 @@ class BettingPool():
         self.cipher = Fernet(cfg["DECRYPTION_KEY"])
 
 
-    def initialize(self, api_endpoint, long_escrow_mint, short_escrow_mint, skip_confirmation=True):
+    def initialize(self, api_endpoint, escrow_mint, decimals=2, skip_confirmation=True):
         msg = ""
         try:
             # Initalize Clinet
@@ -126,7 +126,7 @@ class BettingPool():
             short_mint = Account()
             # List non-derived accounts
             pool_account = pool.public_key()
-            escrow_mint_account = PublicKey(long_escrow_mint)
+            escrow_mint_account = PublicKey(escrow_mint)
             escrow_account = long_escrow.public_key()
             long_token_mint_account = long_mint.public_key()
             short_token_mint_account = short_mint.public_key()
@@ -152,6 +152,7 @@ class BettingPool():
                 token_account,
                 system_account,
                 rent_account,
+                decimals,
             )
             tx = tx.add(init_betting_pool_ix)
             msg += f" | Creating betting pool"
@@ -190,7 +191,10 @@ class BettingPool():
             source_account = Account(self.private_key)
             buyer = Account(buyer_private_key)
             seller = Account(seller_private_key)
+
+            # Signers
             signers = [buyer, seller, source_account]
+
             pool = self.load_betting_pool(api_endpoint, pool_account)
             # List non-derived accounts
             pool_account = PublicKey(pool_account) 
@@ -200,7 +204,6 @@ class BettingPool():
             short_token_mint_account = PublicKey(pool["short_mint"]) 
             buyer_account = buyer.public_key()
             seller_account = seller.public_key()
-            mint_authority_account = source_account.public_key()
             token_account = PublicKey(TOKEN_PROGRAM_ID)
             escrow_owner_account = PublicKey.find_program_address(
                 [bytes(long_token_mint_account), bytes(short_token_mint_account), bytes(token_account), bytes(PublicKey(BETTING_POOL_PROGRAM_ID))],
@@ -230,7 +233,7 @@ class BettingPool():
                         msg += f" | Creating PDA: {token_pda_address}"
                         associated_token_account_ix = create_associated_token_account_instruction(
                             associated_token_account=token_pda_address,
-                            payer=source_account.public_key(), # signer
+                            payer=source_account.public_key(),
                             wallet_address=acct,
                             token_mint_address=mint_account,
                         )
@@ -252,7 +255,6 @@ class BettingPool():
                 atas[0][1],
                 atas[1][0],
                 atas[1][1],
-                mint_authority_account,
                 escrow_owner_account,
                 token_account,
                 int(size),
@@ -293,9 +295,11 @@ class BettingPool():
                 }
             )
         pubkey = 'B' * 32
-        raw_bytes = struct.unpack(f"<Q?{pubkey}{pubkey}{pubkey}{pubkey}{pubkey}", pool_data)
+        raw_bytes = struct.unpack(f"<BQ?{pubkey}{pubkey}{pubkey}{pubkey}{pubkey}", pool_data)
         i = 0
         pool = {}
+        pool["decimals"] = raw_bytes[i] 
+        i += 1
         pool["circulation"] = raw_bytes[i] 
         i += 1
         pool["settled"] = raw_bytes[i] 

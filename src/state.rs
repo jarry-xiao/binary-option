@@ -9,6 +9,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 #[repr(C)]
 #[derive(BorshSerialize, BorshDeserialize, Debug, Clone)]
 pub struct BettingPool {
+    pub decimals: u8,
     pub circulation: u64,
     pub settled: bool,
     pub escrow_mint_account_pubkey: Pubkey,
@@ -19,7 +20,7 @@ pub struct BettingPool {
 }
 
 impl BettingPool {
-    pub const LEN: usize = 169;
+    pub const LEN: usize = 170;
 
     pub fn from_account_info(a: &AccountInfo) -> Result<BettingPool, ProgramError> {
         let betting_pool = BettingPool::try_from_slice(&a.data.borrow_mut())?;

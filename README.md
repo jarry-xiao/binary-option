@@ -62,7 +62,7 @@ This clause groups 1) and 2) together. In this case, both buyer and seller are s
 ```
 n_b < n && n_s < n
 ```
-This clause groups 2) and 3) together (most complex). In this case, both buyer and seller swap positions -- the buyer goes from short to long and the seller goes from long to short. We will first burn the tokens all exiting tokens for parties and then mint new tokens to ensure the buyer's change is `+n` and the seller's change is `-n`. Both parties are also entitled to the locked up funds for their positions that were closed (`n_b * sell_price` for the buyer and `n_s * buy_price` for the seller). The net change in tokens can be calculated as follows: `(-n_b - n_s + 2n - n_b - n_s) / 2 = n - n_b - n_s`. If this quantity is positive, this means that the trade causes a net increase in the total supply of contracts in the betting pool. Otherwise, it results in a net decrease in total circulation.
+This clause groups 2) and 3) together (most complex). In this case, both buyer and seller swap positions -- the buyer goes from short to long and the seller goes from long to short. We will first bur all exiting tokens for both parties and then mint new tokens to ensure the buyer's change is `+n` and the seller's change is `-n`. Both parties are also entitled to the locked up funds for their positions that were closed (`n_b * sell_price` for the buyer and `n_s * buy_price` for the seller). The net change in tokens can be calculated as follows: `(-n_b - n_s + 2n - n_b - n_s) / 2 = n - n_b - n_s`. If this quantity is positive, this means that the trade causes a net increase in the total supply of contracts in the betting pool. Otherwise, it results in a net decrease in total circulation.
 
 ```
 n_b >= n && n_s <  n

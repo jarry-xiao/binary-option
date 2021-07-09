@@ -2,11 +2,12 @@ use {
     solana_program::{
         account_info::AccountInfo,
         entrypoint::ProgramResult,
+        msg,
         program::{invoke, invoke_signed},
         pubkey::Pubkey,
     },
     spl_token::instruction::{
-        burn, initialize_account, initialize_mint, mint_to, set_authority, transfer, AuthorityType,
+        approve_checked, burn, initialize_account, initialize_mint, mint_to, set_authority, transfer, AuthorityType,
     },
 };
 
@@ -53,6 +54,38 @@ pub fn spl_mint_initialize<'a>(
     Ok(())
 }
 
+pub fn spl_approve<'a>(
+    token_program: &AccountInfo<'a>,
+    source_account: &AccountInfo<'a>,
+    mint: &AccountInfo<'a>,
+    delegate: &AccountInfo<'a>,
+    owner: &AccountInfo<'a>,
+    amount: u64,
+    decimals: u8,
+) -> ProgramResult {
+    let ix = approve_checked(
+        token_program.key,
+        source_account.key,
+        mint.key,
+        delegate.key,
+        owner.key,
+        &[],
+        amount,
+        decimals,
+    )?;
+    invoke(
+        &ix,
+        &[
+            source_account.clone(),
+            mint.clone(),
+            delegate.clone(),
+            owner.clone(),
+            token_program.clone(),
+        ],
+    )?;
+    Ok(())
+}
+
 pub fn spl_burn<'a>(
     token_program: &AccountInfo<'a>,
     burn_account: &AccountInfo<'a>,
@@ -62,10 +95,10 @@ pub fn spl_burn<'a>(
 ) -> ProgramResult {
     if amount > 0 {
         let ix = burn(
-            &*token_program.key,
-            &*burn_account.key,
-            &*mint.key,
-            &*authority.key,
+            token_program.key,
+            burn_account.key,
+            mint.key,
+            authority.key,
             &[],
             amount,
         )?;
@@ -82,6 +115,38 @@ pub fn spl_burn<'a>(
     Ok(())
 }
 
+pub fn spl_burn_signed<'a>(
+    token_program: &AccountInfo<'a>,
+    burn_account: &AccountInfo<'a>,
+    mint: &AccountInfo<'a>,
+    authority: &AccountInfo<'a>,
+    amount: u64,
+    signers: &[&[u8]],
+) -> ProgramResult {
+    msg!("Burn Signed");
+    if amount > 0 {
+        let ix = burn(
+            token_program.key,
+            burn_account.key,
+            mint.key,
+            authority.key,
+            &[&authority.key],
+            amount,
+        )?;
+        invoke_signed(
+            &ix,
+            &[
+                burn_account.clone(),
+                mint.clone(),
+                authority.clone(),
+                token_program.clone(),
+            ],
+            &[&signers],
+        )?;
+    }
+    Ok(())
+}
+
 pub fn spl_mint_to<'a>(
     token_program: &AccountInfo<'a>,
     dest_account: &AccountInfo<'a>,
@@ -91,11 +156,11 @@ pub fn spl_mint_to<'a>(
     signers: &[&[u8]],
 ) -> ProgramResult {
     let ix = mint_to(
-        &*token_program.key,
-        &*mint.key,
-        &*dest_account.key,
-        &*authority.key,
-        &[],
+        token_program.key,
+        mint.key,
+        dest_account.key,
+        authority.key,
+        &[&authority.key],
         amount,
     )?;
     invoke_signed(

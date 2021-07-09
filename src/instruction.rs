@@ -37,10 +37,8 @@ pub enum BettingPoolInstruction {
 pub fn initailize_betting_pool(
     program_id: Pubkey,
     pool_account: Pubkey,
-    long_escrow_mint: Pubkey,
-    short_escrow_mint: Pubkey,
-    long_escrow_account: Pubkey,
-    short_escrow_account: Pubkey,
+    escrow_mint: Pubkey,
+    escrow_account: Pubkey,
     long_token_mint: Pubkey,
     short_token_mint: Pubkey,
     mint_authority: Pubkey,
@@ -50,14 +48,12 @@ pub fn initailize_betting_pool(
     Instruction {
         program_id,
         accounts: vec![
-            AccountMeta::new(pool_account, false),
-            AccountMeta::new_readonly(long_escrow_mint, false),
-            AccountMeta::new_readonly(short_escrow_mint, false),
-            AccountMeta::new_readonly(long_escrow_account, false),
-            AccountMeta::new_readonly(short_escrow_account, false),
-            AccountMeta::new_readonly(long_token_mint, false),
-            AccountMeta::new_readonly(short_token_mint, false),
-            AccountMeta::new_readonly(mint_authority, false),
+            AccountMeta::new(pool_account, true),
+            AccountMeta::new_readonly(escrow_mint, false),
+            AccountMeta::new(escrow_account, true),
+            AccountMeta::new_readonly(long_token_mint, true),
+            AccountMeta::new_readonly(short_token_mint, true),
+            AccountMeta::new_readonly(mint_authority, true),
             AccountMeta::new_readonly(update_authority, true),
             AccountMeta::new_readonly(spl_token::id(), false),
             AccountMeta::new_readonly(solana_program::system_program::id(), false),
@@ -69,16 +65,23 @@ pub fn initailize_betting_pool(
     }
 }
 
-/// Creates an PlaceBet instruction
+/// Creates a Trade instruction
 #[allow(clippy::too_many_arguments)]
-pub fn place_bet(
+pub fn initailize_trade(
     program_id: Pubkey,
     pool_account: Pubkey,
-    mint: Pubkey,
-    mint_authority: Pubkey,
-    pool_host: Pubkey,
-    player_account: Pubkey,
-    update_authority: Pubkey,
+    escrow_account: Pubkey,
+    long_token_mint: Pubkey,
+    short_token_mint: Pubkey,
+    buyer: Pubkey,
+    seller: Pubkey,
+    buyer_account: Pubkey,
+    seller_account: Pubkey,
+    buyer_long_token_account: Pubkey,
+    buyer_short_token_account: Pubkey,
+    seller_long_token_account: Pubkey,
+    seller_short_token_account: Pubkey,
+    escrow_authority: Pubkey,
     size: u64,
     buy_price: u64,
     sell_price: u64,
@@ -87,20 +90,22 @@ pub fn place_bet(
         program_id,
         accounts: vec![
             AccountMeta::new(pool_account, false),
-            AccountMeta::new_readonly(mint, false),
-            AccountMeta::new_readonly(mint_authority, true),
-            AccountMeta::new_readonly(pool_host, true),
-            AccountMeta::new_readonly(player_account, true),
-            AccountMeta::new_readonly(update_authority, false),
-            AccountMeta::new_readonly(solana_program::system_program::id(), false),
-            AccountMeta::new_readonly(sysvar::rent::id(), false),
+            AccountMeta::new(escrow_account, false),
+            AccountMeta::new(long_token_mint, false),
+            AccountMeta::new(short_token_mint, false),
+            AccountMeta::new_readonly(buyer, true),
+            AccountMeta::new_readonly(seller, true),
+            AccountMeta::new(buyer_account, false),
+            AccountMeta::new(seller_account, false),
+            AccountMeta::new(buyer_long_token_account, false),
+            AccountMeta::new(buyer_short_token_account, false),
+            AccountMeta::new(seller_long_token_account, false),
+            AccountMeta::new(seller_short_token_account, false),
+            AccountMeta::new_readonly(escrow_authority, false),
+            AccountMeta::new_readonly(spl_token::id(), false),
         ],
-        data: BettingPoolInstruction::Trade(TradeArgs {
-            size,
-            buy_price,
-            sell_price,
-        })
-        .try_to_vec()
-        .unwrap(),
+        data: BettingPoolInstruction::Trade(TradeArgs { size, buy_price, sell_price })
+            .try_to_vec()
+            .unwrap(),
     }
 }

@@ -3,10 +3,10 @@ use crate::{
     instruction::BettingPoolInstruction,
     spl_utils::{
         spl_burn, spl_initialize, spl_mint_initialize, spl_mint_to, spl_set_authority,
-        spl_token_transfer, spl_token_transfer_signed,
+        spl_token_transfer, spl_token_transfer_signed, spl_approve, spl_burn_signed,
     },
     state::BettingPool,
-    system_utils::{create_new_account, create_or_allocate_account_raw},
+    system_utils::{create_new_account, create_or_allocate_account_raw, topup},
     validation_utils::{
         assert_initialized, assert_keys_equal, assert_keys_unequal,
         assert_mint_authority_matches_mint, assert_owned_by,
@@ -17,6 +17,7 @@ use solana_program::{
     account_info::{next_account_info, AccountInfo},
     entrypoint::ProgramResult,
     msg,
+    program_error::ProgramError,
     program_pack::Pack,
     pubkey::Pubkey,
 };
@@ -185,6 +186,7 @@ pub fn process_initialize_betting_pool(
     betting_pool.short_mint_account_pubkey = *short_token_mint_info.key;
     betting_pool.escrow_mint_account_pubkey = *escrow_mint_info.key;
     betting_pool.escrow_account_pubkey = *escrow_account_info.key;
+    betting_pool.owner = *update_authority_info.key;
     betting_pool.serialize(&mut *pool_account_info.data.borrow_mut())?;
 
     Ok(())
@@ -215,6 +217,8 @@ pub fn process_trade(
     let token_program_info = next_account_info(account_info_iter)?;
 
     // Unpack accounts
+    let long_token_mint: Mint = assert_initialized(long_token_mint_info)?;
+    let short_token_mint: Mint = assert_initialized(short_token_mint_info)?;
     let buyer_long_token_account: Account = assert_initialized(buyer_long_token_account_info)?;
     let buyer_short_token_account: Account = assert_initialized(buyer_short_token_account_info)?;
     let seller_long_token_account: Account = assert_initialized(seller_long_token_account_info)?;
@@ -289,6 +293,12 @@ pub fn process_trade(
     let n = size;
     let n_b = buyer_short_token_account.amount;
     let n_s = seller_long_token_account.amount;
+
+    let mut b_l = buyer_long_token_account.amount;
+    let mut b_s = n_b;
+    let mut s_l = n_s;
+    let mut s_s = seller_short_token_account.amount;
+
     match [n_b >= n, n_s >= n] {
         /*
         When n is less than both n_b and n_s, this means that both buyer and seller are simply reducing their existing inventory.
@@ -329,6 +339,8 @@ pub fn process_trade(
                 1,
                 seeds,
             )?;
+            b_s -= n;
+            s_l -= n;
             betting_pool.decrement_supply(n)?;
         }
         /*
@@ -355,6 +367,8 @@ pub fn process_trade(
                 &seller_info,
                 n_s,
             )?;
+            b_s -= n_b;
+            s_l -= n_s;
             spl_mint_to(
                 &token_program_info,
                 &buyer_long_token_account_info,
@@ -371,6 +385,8 @@ pub fn process_trade(
                 n - n_s,
                 seeds,
             )?;
+            b_l += n - n_b;
+            s_s += n - n_s;
             spl_token_transfer(
                 &token_program_info,
                 &buyer_account_info,
@@ -432,6 +448,8 @@ pub fn process_trade(
                 &seller_info,
                 n_s,
             )?;
+            b_s -= n;
+            s_l -= n_s;
             spl_mint_to(
                 &token_program_info,
                 &seller_short_token_account_info,
@@ -440,6 +458,7 @@ pub fn process_trade(
                 n - n_s,
                 seeds,
             )?;
+            s_s += n - n_s;
             spl_token_transfer(
                 &token_program_info,
                 &seller_account_info,
@@ -490,6 +509,8 @@ pub fn process_trade(
                 &buyer_info,
                 n_b,
             )?;
+            b_s -= n_b;
+            s_l -= n;
             spl_mint_to(
                 &token_program_info,
                 &buyer_long_token_account_info,
@@ -498,6 +519,7 @@ pub fn process_trade(
                 n - n_b,
                 seeds,
             )?;
+            b_l += n - n_b;
             spl_token_transfer(
                 &token_program_info,
                 &buyer_account_info,
@@ -526,21 +548,67 @@ pub fn process_trade(
             betting_pool.decrement_supply(n_b)?;
         }
     }
+    // Delegate the burn authority to the PDA, so a private key is unnecessary on collection
+    // This can probably be optimized to reduce the number of instructions needed at some point
+    spl_approve(
+        &token_program_info,
+        &buyer_long_token_account_info,
+        &long_token_mint_info,
+        &authority_info,
+        &buyer_info,
+        b_l,
+        long_token_mint.decimals,
+    )?;
+    spl_approve(
+        &token_program_info,
+        &seller_short_token_account_info,
+        &short_token_mint_info,
+        &authority_info,
+        &seller_info,
+        s_s,
+        short_token_mint.decimals,
+    )?;
+    spl_approve(
+        &token_program_info,
+        &buyer_short_token_account_info,
+        &short_token_mint_info,
+        &authority_info,
+        &buyer_info,
+        b_s,
+        short_token_mint.decimals,
+    )?;
+    spl_approve(
+        &token_program_info,
+        &seller_long_token_account_info,
+        &long_token_mint_info,
+        &authority_info,
+        &seller_info,
+        s_l,
+        long_token_mint.decimals,
+    )?;
     betting_pool.serialize(&mut *pool_account_info.data.borrow_mut())?;
     Ok(())
 }
 
 pub fn process_settle(_program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
+    // This should NEVER be called directly (otherwise this is literally a rug)
+    // The `pool_owner_info` needs to approve this action, so the recommended use case is to have a higher
+    // level program own the pool and use an oracle to resolve settlements 
+    msg!("Settle");
     let account_info_iter = &mut accounts.iter();
     let pool_account_info = next_account_info(account_info_iter)?;
     let winning_mint_account_info = next_account_info(account_info_iter)?;
-    let update_authority_info = next_account_info(account_info_iter)?;
+    let pool_owner_info = next_account_info(account_info_iter)?;
 
-    let winning_mint: Mint = assert_initialized(winning_mint_account_info)?;
     let mut betting_pool = BettingPool::try_from_slice(&pool_account_info.data.borrow_mut())?;
+    if !pool_owner_info.is_signer {
+        return Err(ProgramError::MissingRequiredSignature);
+    }
+    if betting_pool.settled {
+        return Err(BettingPoolError::AlreadySettled.into());
+    }
 
-    assert_mint_authority_matches_mint(&winning_mint, update_authority_info)?;
-
+    assert_keys_equal(*pool_owner_info.key, betting_pool.owner)?;
     if *winning_mint_account_info.key == betting_pool.long_mint_account_pubkey
         || *winning_mint_account_info.key == betting_pool.short_mint_account_pubkey
     {
@@ -554,6 +622,7 @@ pub fn process_settle(_program_id: &Pubkey, accounts: &[AccountInfo]) -> Program
 }
 
 pub fn process_collect(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
+    msg!("Collect");
     let account_info_iter = &mut accounts.iter();
     let pool_account_info = next_account_info(account_info_iter)?;
     let collector_info = next_account_info(account_info_iter)?;
@@ -562,13 +631,13 @@ pub fn process_collect(program_id: &Pubkey, accounts: &[AccountInfo]) -> Program
     let collector_account_info = next_account_info(account_info_iter)?;
     let long_token_mint_info = next_account_info(account_info_iter)?;
     let short_token_mint_info = next_account_info(account_info_iter)?;
-    let mint_authority_info = next_account_info(account_info_iter)?;
     let escrow_account_info = next_account_info(account_info_iter)?;
     let escrow_authority_info = next_account_info(account_info_iter)?;
+    let fee_payer_info = next_account_info(account_info_iter)?;
     let token_program_info = next_account_info(account_info_iter)?;
+    let system_account_info = next_account_info(account_info_iter)?;
+    let rent_info = next_account_info(account_info_iter)?;
 
-    let long_token_mint: Mint = assert_initialized(long_token_mint_info)?;
-    let short_token_mint: Mint = assert_initialized(short_token_mint_info)?;
     let collector_long_token_account: Account =
         assert_initialized(collector_long_token_account_info)?;
     let collector_short_token_account: Account =
@@ -598,19 +667,11 @@ pub fn process_collect(program_id: &Pubkey, accounts: &[AccountInfo]) -> Program
     if !betting_pool.settled {
         return Err(BettingPoolError::BetNotSettled.into());
     }
-    assert_mint_authority_matches_mint(&long_token_mint, mint_authority_info)?;
-    assert_mint_authority_matches_mint(&short_token_mint, mint_authority_info)?;
     assert_owned_by(long_token_mint_info, &spl_token::id())?;
     assert_owned_by(short_token_mint_info, &spl_token::id())?;
-    assert_owned_by(
-        collector_long_token_account_info,
-        collector_account_info.key,
-    )?;
-    assert_owned_by(
-        collector_short_token_account_info,
-        collector_account_info.key,
-    )?;
-    assert_owned_by(collector_account_info, collector_info.key)?;
+    assert_keys_equal(collector_long_token_account.owner, *collector_info.key)?;
+    assert_keys_equal(collector_short_token_account.owner, *collector_info.key)?;
+    assert_keys_equal(collector_account.owner, *collector_info.key)?;
     assert_keys_equal(escrow_owner_key, *escrow_authority_info.key)?;
     assert_keys_equal(
         *long_token_mint_info.key,
@@ -642,6 +703,30 @@ pub fn process_collect(program_id: &Pubkey, accounts: &[AccountInfo]) -> Program
         [false, true] => collector_short_token_account.amount,
         _ => return Err(BettingPoolError::TokenNotFoundInPool.into()),
     };
+
+    topup(
+        escrow_authority_info,
+        rent_info,
+        system_account_info,
+        fee_payer_info,
+        1,
+    )?;
+    spl_burn_signed(
+        &token_program_info,
+        &collector_long_token_account_info,
+        &long_token_mint_info,
+        &escrow_authority_info,
+        collector_long_token_account.amount,
+        seeds,
+    )?;
+    spl_burn_signed(
+        &token_program_info,
+        &collector_short_token_account_info,
+        &short_token_mint_info,
+        &escrow_authority_info,
+        collector_short_token_account.amount,
+        seeds,
+    )?;
     if reward > 0 {
         spl_token_transfer_signed(
             &token_program_info,
@@ -652,30 +737,8 @@ pub fn process_collect(program_id: &Pubkey, accounts: &[AccountInfo]) -> Program
             betting_pool.circulation,
             seeds,
         )?;
-        spl_token_transfer_signed(
-            &token_program_info,
-            &escrow_account_info,
-            &collector_account_info,
-            &escrow_authority_info,
-            reward * escrow_account.amount,
-            betting_pool.circulation,
-            seeds,
-        )?;
-        spl_burn(
-            token_program_info,
-            collector_account_info,
-            long_token_mint_info,
-            mint_authority_info,
-            collector_long_token_account.amount,
-        )?;
-        spl_burn(
-            token_program_info,
-            collector_account_info,
-            short_token_mint_info,
-            mint_authority_info,
-            collector_short_token_account.amount,
-        )?;
         betting_pool.decrement_supply(reward)?;
     }
+    betting_pool.serialize(&mut *pool_account_info.data.borrow_mut())?;
     Ok(())
 }

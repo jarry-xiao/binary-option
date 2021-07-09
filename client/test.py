@@ -53,7 +53,7 @@ def update_and_print_state():
     except:
         pass
     balance_data.append(state)
-    print(pd.DataFrame(balance_data))
+    print(pd.DataFrame(balance_data).fillna(0).astype(int))
 
 
 account = Account()
@@ -120,4 +120,11 @@ update_and_print_state()
 print(bp.trade(api_endpoint, pool, ek3, ek1, 1, 50, 50, skip_confirmation=False))
 update_and_print_state()
 print(bp.trade(api_endpoint, pool, ek3, ek1, 1, 50, 50, skip_confirmation=False))
+update_and_print_state()
+
+long_mint = pool_data['long_mint']
+print(bp.settle(api_endpoint, pool, long_mint, skip_confirmation=False))
+print(bp.collect(api_endpoint, pool, a1.public_key(), skip_confirmation=False))
+print(bp.collect(api_endpoint, pool, a2.public_key(), skip_confirmation=False))
+print(bp.collect(api_endpoint, pool, a3.public_key(), skip_confirmation=False))
 update_and_print_state()

@@ -16,11 +16,12 @@ pub struct BettingPool {
     pub escrow_account_pubkey: Pubkey,
     pub long_mint_account_pubkey: Pubkey,
     pub short_mint_account_pubkey: Pubkey,
+    pub owner: Pubkey,
     pub winning_side_pubkey: Pubkey,
 }
 
 impl BettingPool {
-    pub const LEN: usize = 170;
+    pub const LEN: usize = 202;
 
     pub fn from_account_info(a: &AccountInfo) -> Result<BettingPool, ProgramError> {
         let betting_pool = BettingPool::try_from_slice(&a.data.borrow_mut())?;

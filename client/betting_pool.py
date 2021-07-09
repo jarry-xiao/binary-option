@@ -90,6 +90,51 @@ def trade_instruction(
     data = struct.pack("<BQQQ", 1, size, buyer_price, seller_price)
     return TransactionInstruction(keys=keys, program_id=PublicKey(BETTING_POOL_PROGRAM_ID), data=data)
 
+def settle_instruction(
+    pool_account,
+    winning_mint_account,
+    pool_owner_account,
+):
+    keys = [
+        AccountMeta(pubkey=pool_account, is_signer=False, is_writable=True),
+        AccountMeta(pubkey=winning_mint_account, is_signer=False, is_writable=False),
+        AccountMeta(pubkey=pool_owner_account, is_signer=True, is_writable=False),
+    ]
+    data = struct.pack("<B", 2)
+    return TransactionInstruction(keys=keys, program_id=PublicKey(BETTING_POOL_PROGRAM_ID), data=data)
+
+def collect_instruction(
+    pool_account,
+    collector_account,
+    collector_long_token_account,
+    collector_short_token_account,
+    collector_collateral_account,
+    long_token_mint_account,
+    short_token_mint_account,
+    escrow_account,
+    escrow_authority_account,
+    fee_payer_account,
+    token_account,
+    system_account,
+    rent_account,
+):
+    keys = [
+        AccountMeta(pubkey=pool_account, is_signer=False, is_writable=True),
+        AccountMeta(pubkey=collector_account, is_signer=False, is_writable=False),
+        AccountMeta(pubkey=collector_long_token_account, is_signer=False, is_writable=True),
+        AccountMeta(pubkey=collector_short_token_account, is_signer=False, is_writable=True),
+        AccountMeta(pubkey=collector_collateral_account, is_signer=False, is_writable=True),
+        AccountMeta(pubkey=long_token_mint_account, is_signer=False, is_writable=True),
+        AccountMeta(pubkey=short_token_mint_account, is_signer=False, is_writable=True),
+        AccountMeta(pubkey=escrow_account, is_signer=False, is_writable=True),
+        AccountMeta(pubkey=escrow_authority_account, is_signer=False, is_writable=True),
+        AccountMeta(pubkey=fee_payer_account, is_signer=True, is_writable=False),
+        AccountMeta(pubkey=token_account, is_signer=False, is_writable=False),
+        AccountMeta(pubkey=system_account, is_signer=False, is_writable=False),
+        AccountMeta(pubkey=rent_account, is_signer=False, is_writable=False),
+    ]
+    data = struct.pack("<B", 3)
+    return TransactionInstruction(keys=keys, program_id=PublicKey(BETTING_POOL_PROGRAM_ID), data=data)
 
 class BettingPool():
 
@@ -246,6 +291,105 @@ class BettingPool():
             msg += f" | ERROR: Encountered exception while attempting to send transaction: {e}"
             raise(e)
 
+    def settle(self, api_endpoint, pool_account, winning_mint, skip_confirmation=True):
+        msg = ""
+        client = Client(api_endpoint)
+        msg += "Initialized client"
+        # Create account objects
+        source_account = Account(self.private_key)
+        # Signers
+        signers = [source_account]
+        # List non-derived accounts
+        pool_account = PublicKey(pool_account) 
+        winning_mint_account = PublicKey(winning_mint) 
+        tx = Transaction()
+        settle_ix = settle_instruction(
+            pool_account,
+            winning_mint_account,
+            source_account.public_key(),
+        )
+        tx = tx.add(settle_ix)
+        # Send request
+        try:
+            response = client.send_transaction(tx, *signers, opts=types.TxOpts(skip_confirmation=skip_confirmation))
+            return json.dumps(
+                {
+                    'status': HTTPStatus.OK,
+                    'msg': msg + f" | Settle successful, winner: {str(winning_mint_account)}",
+                    'tx': response.get('result') if skip_confirmation else response['result']['transaction']['signatures'],
+                }
+            )
+        except Exception as e:
+            msg += f" | ERROR: Encountered exception while attempting to send transaction: {e}"
+            raise(e)
+
+    def collect(self, api_endpoint, pool_account, collector, skip_confirmation=True):
+        msg = ""
+        client = Client(api_endpoint)
+        msg += "Initialized client"
+        source_account = Account(self.private_key)
+        signers = [source_account]
+        pool = self.load_betting_pool(api_endpoint, pool_account)
+        pool_account = PublicKey(pool_account) 
+        collector_account = PublicKey(collector)
+        escrow_account = PublicKey(pool["escrow"]) 
+        escrow_mint_account = PublicKey(pool["escrow_mint"]) 
+        long_token_mint_account = PublicKey(pool["long_mint"]) 
+        short_token_mint_account = PublicKey(pool["short_mint"]) 
+        token_account = PublicKey(TOKEN_PROGRAM_ID)
+        system_account = PublicKey(SYSTEM_PROGRAM_ID)
+        rent_account = PublicKey(SYSVAR_RENT_ID)
+        escrow_authority_account = PublicKey.find_program_address(
+            [bytes(long_token_mint_account), bytes(short_token_mint_account), bytes(token_account), bytes(PublicKey(BETTING_POOL_PROGRAM_ID))],
+            PublicKey(BETTING_POOL_PROGRAM_ID),
+        )[0]
+        # Transaction
+        tx = Transaction()
+        atas = []
+        for mint_account in (long_token_mint_account, short_token_mint_account, escrow_mint_account):
+            token_pda_address = get_associated_token_address(collector_account, mint_account)
+            associated_token_account_info = client.get_account_info(token_pda_address)
+            account_info = associated_token_account_info['result']['value']
+            if account_info is not None: 
+                account_state = ACCOUNT_LAYOUT.parse(base64.b64decode(account_info['data'][0])).state
+            else:
+                account_state = 0
+            if account_state == 0:
+                msg += f" | Error Fetching PDA: {token_pda_address}"
+                raise Exception()
+            else:
+                msg += f" | Fetched PDA: {token_pda_address}"
+            atas.append(token_pda_address)
+        collect_ix = collect_instruction(
+            pool_account,
+            collector_account,
+            atas[0],
+            atas[1],
+            atas[2],
+            long_token_mint_account,
+            short_token_mint_account,
+            escrow_account,
+            escrow_authority_account,
+            source_account.public_key(),
+            token_account,
+            system_account,
+            rent_account,
+        )
+        tx = tx.add(collect_ix) 
+        try:
+            response = client.send_transaction(tx, *signers, opts=types.TxOpts(skip_confirmation=skip_confirmation))
+            return json.dumps(
+                {
+                    'status': HTTPStatus.OK,
+                    'msg': msg + f" | Collect successful",
+                    'tx': response.get('result') if skip_confirmation else response['result']['transaction']['signatures'],
+                }
+            )
+        except Exception as e:
+            msg += f" | ERROR: Encountered exception while attempting to send transaction: {e}"
+            print(msg)
+            raise(e)        
+
 
     def load_betting_pool(self, api_endpoint, pool_account):
         client = Client(api_endpoint)
@@ -259,7 +403,7 @@ class BettingPool():
                 }
             )
         pubkey = 'B' * 32
-        raw_bytes = struct.unpack(f"<BQ?{pubkey}{pubkey}{pubkey}{pubkey}{pubkey}", pool_data)
+        raw_bytes = struct.unpack(f"<BQ?{pubkey}{pubkey}{pubkey}{pubkey}{pubkey}{pubkey}", pool_data)
         i = 0
         pool = {}
         pool["decimals"] = raw_bytes[i] 
@@ -275,6 +419,8 @@ class BettingPool():
         pool["long_mint"] = base58.b58encode(bytes(raw_bytes[i:i+32])).decode('ascii')
         i += 32
         pool["short_mint"] = base58.b58encode(bytes(raw_bytes[i:i+32])).decode('ascii')
+        i += 32
+        pool["owner"] = base58.b58encode(bytes(raw_bytes[i:i+32])).decode('ascii')
         i += 32
         pool["winning_side"] = base58.b58encode(bytes(raw_bytes[i:i+32])).decode('ascii')
         i += 32

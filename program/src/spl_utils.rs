@@ -7,7 +7,8 @@ use {
         pubkey::Pubkey,
     },
     spl_token::instruction::{
-        approve_checked, burn, initialize_account, initialize_mint, mint_to, set_authority, transfer, AuthorityType,
+        approve_checked, burn, initialize_account, initialize_mint, mint_to, set_authority,
+        transfer, AuthorityType,
     },
 };
 
@@ -130,7 +131,7 @@ pub fn spl_burn_signed<'a>(
             burn_account.key,
             mint.key,
             authority.key,
-            &[&authority.key],
+            &[],
             amount,
         )?;
         invoke_signed(
@@ -141,7 +142,7 @@ pub fn spl_burn_signed<'a>(
                 authority.clone(),
                 token_program.clone(),
             ],
-            &[&signers],
+            &[signers],
         )?;
     }
     Ok(())
@@ -160,7 +161,7 @@ pub fn spl_mint_to<'a>(
         mint.key,
         dest_account.key,
         authority.key,
-        &[&authority.key],
+        &[],
         amount,
     )?;
     invoke_signed(
@@ -171,7 +172,7 @@ pub fn spl_mint_to<'a>(
             authority.clone(),
             token_program.clone(),
         ],
-        &[&signers],
+        &[signers],
     )?;
     Ok(())
 }
@@ -189,7 +190,7 @@ pub fn spl_token_transfer<'a>(
             source.key,
             destination.key,
             owner.key,
-            &[&owner.key],
+            &[],
             amount,
         )?;
         invoke(
@@ -210,18 +211,17 @@ pub fn spl_token_transfer_signed<'a>(
     source: &AccountInfo<'a>,
     destination: &AccountInfo<'a>,
     pda_account: &AccountInfo<'a>,
-    num: u64,
-    denom: u64,
+    amount: u64,
     signers: &[&[u8]],
 ) -> ProgramResult {
-    if num > 0 && denom > 0 {
+    if amount > 0 {
         let ix = transfer(
             token_program.key,
             source.key,
             destination.key,
             pda_account.key,
-            &[&pda_account.key],
-            num / denom,
+            &[],
+            amount,
         )?;
         invoke_signed(
             &ix,
@@ -231,7 +231,7 @@ pub fn spl_token_transfer_signed<'a>(
                 pda_account.clone(),
                 token_program.clone(),
             ],
-            &[&signers],
+            &[signers],
         )?;
     }
     Ok(())
@@ -250,7 +250,7 @@ pub fn spl_set_authority<'a>(
         new_authority.as_ref(),
         authority_type,
         owner.key,
-        &[&owner.key],
+        &[],
     )?;
     invoke(
         &ix,
